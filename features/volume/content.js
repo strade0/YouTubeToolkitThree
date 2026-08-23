@@ -1,8 +1,4 @@
-/**
- * YouTube Viewport Volume Drag - Content Script
- * Robust persistent volume memory, zero startup burst, full native slider support,
- * keyboard shortcuts synchronization, race-free HUD lifecycle, and normalization-proof master volume.
- */
+// Volume drag gesture content script and native UI synchronizer.
 
 (function () {
   'use strict';
@@ -15,7 +11,7 @@
     'yt-player-volume'
   ]);
 
-  // Block cross-tab storage broadcast so other open tabs stay independent
+  // Prevent cross-tab storage broadcast
   window.addEventListener('storage', (e) => {
     if (e.key && VOLUME_STORAGE_KEYS.has(e.key)) {
       e.stopImmediatePropagation();
@@ -65,12 +61,20 @@
   let lastSyncedMuted = null;
   let lastNativeSliderKey = '';
   let playerObserver = null;
+  let nativeSliderObserver = null;
+  let isNativeSliderInteracting = false;
+  let nativeSliderWatchedPanel = null;
+  let nativeSliderWatchedHandle = null;
 
   let suppressNextClick = false;
   let suppressNextContextMenu = false;
   let suppressClickTimer = null;
   let suppressContextTimer = null;
   let hudEnsureTimer = null;
+  let userVolumeHoldUntil = 0;
+  let pendingEarlyHold = null;
+
+  const NATIVE_VOLUME_SELECTOR = '.ytp-volume-control, .ytp-volume-panel, .ytp-volume-slider, .ytp-mute-button, .ytp-volume-area';
 
   const DRAG_THRESHOLD_PX = 6;
   const FAST_FORWARD_THRESHOLD_MS = 400;
@@ -120,6 +124,10 @@
       }
     }
   } catch (e) {}
+
+  function noteUserVolumeChange() {
+    userVolumeHoldUntil = performance.now() + 2500;
+  }
 
   function persistVolume(volumeFraction, isMuted) {
     const clamped = toFiniteVolume(volumeFraction, null);
@@ -175,12 +183,27 @@
   window.addEventListener('yt-player-volume-changed', (e) => {
     if (!e || !e.detail || isDragging) return;
 
-    const { volume, isMuted } = e.detail;
+    const { volume, isMuted, fromUserNativeInteraction } = e.detail;
     if (typeof volume === 'number' && Number.isFinite(volume)) {
       const volFraction = toFiniteVolume(volume / 100, null);
       if (volFraction === null) return;
-      persistVolume(volFraction, !!isMuted);
-      syncNativeSliderUI(volFraction, tabDesiredMuted);
+
+      const userDriven = fromUserNativeInteraction ||
+        isNativeSliderInteracting ||
+        performance.now() < userVolumeHoldUntil;
+
+      if (userDriven) {
+        noteUserVolumeChange();
+        persistVolume(volFraction, !!isMuted);
+        syncNativeSliderUI(volFraction, tabDesiredMuted);
+      } else if (tabDesiredVolume !== null && Math.abs(volFraction - tabDesiredVolume) > 0.02) {
+        const intVol = Math.round(tabDesiredVolume * 100);
+        syncWithMainWorldPlayer(intVol, tabDesiredMuted);
+        syncNativeSliderUI(tabDesiredVolume, tabDesiredMuted);
+      } else {
+        persistVolume(volFraction, !!isMuted);
+        syncNativeSliderUI(volFraction, tabDesiredMuted);
+      }
     }
   });
 
@@ -233,31 +256,68 @@
     });
   }
 
+  const PLAYER_SELECTOR = '#movie_player, .html5-video-player, ytd-player, #ytd-player, #player-container-outer, #player';
+
+  function resolvePlayerRoot(el) {
+    if (!el) return null;
+    if (el.id === 'movie_player' || (el.classList && el.classList.contains('html5-video-player'))) {
+      return el;
+    }
+    return el.querySelector('#movie_player, .html5-video-player') || el;
+  }
+
   function getPlayerElements() {
     const moviePlayer = document.getElementById('movie_player');
     if (moviePlayer && !isInlinePreview(moviePlayer)) {
       const video = moviePlayer.querySelector('video');
-      if (video) return { player: moviePlayer, video };
+      return { player: moviePlayer, video: video || null };
     }
 
     const primaryContainer = document.querySelector('ytd-watch-flexy, ytd-watch-grid, #shorts-player, ytd-shorts, ytd-miniplayer');
     if (primaryContainer) {
-      const player = primaryContainer.querySelector('.html5-video-player') || primaryContainer;
+      const player = resolvePlayerRoot(
+        primaryContainer.querySelector('.html5-video-player') ||
+        primaryContainer.querySelector('#player, #ytd-player, ytd-player, #player-container-outer, #player-container') ||
+        primaryContainer
+      );
       const video = primaryContainer.querySelector('video');
-      if (player && video && !isInlinePreview(player) && !isInlinePreview(video)) {
-        return { player, video };
+      if (player && !isInlinePreview(player)) {
+        return { player, video: video || null };
       }
     }
 
-    const player = document.querySelector('.html5-video-player:not(#inline-preview-player)');
+    const player = document.querySelector('.html5-video-player:not(#inline-preview-player), #player:not([hidden]), #ytd-player, ytd-player');
     if (player && !isInlinePreview(player)) {
-      const video = player.querySelector('video');
-      if (video && !isInlinePreview(video)) {
-        return { player, video };
-      }
+      const root = resolvePlayerRoot(player);
+      const video = root.querySelector('video');
+      return { player: root, video: video || null };
     }
 
     return { player: null, video: null };
+  }
+
+  function getPlayerFromTarget(target) {
+    if (target && target.closest) {
+      try {
+        const hit = target.closest(PLAYER_SELECTOR);
+        if (hit && !isInlinePreview(hit)) {
+          const player = resolvePlayerRoot(hit);
+          if (player && !isInlinePreview(player)) {
+            const video = player.querySelector ? player.querySelector('video') : null;
+            return { player, video: video || null };
+          }
+        }
+      } catch (e) {}
+    }
+    return getPlayerElements();
+  }
+
+  function disableNativeVideoDrag(video) {
+    if (!video) return;
+    try {
+      video.draggable = false;
+      video.setAttribute('draggable', 'false');
+    } catch (e) {}
   }
 
   function releasePointerCapture() {
@@ -276,9 +336,40 @@
     if (activePlayer) activePlayer.classList.toggle('yt-vol-dragging-active', on);
   }
 
+  function isInsidePlayerRect(clientX, clientY, playerRect) {
+    if (!playerRect || playerRect.width === 0 || playerRect.height === 0) return false;
+    return clientX >= playerRect.left &&
+           clientX <= playerRect.right &&
+           clientY >= playerRect.top &&
+           clientY <= playerRect.bottom;
+  }
+
+  function tryActivatePendingEarlyHold(resolvedPlayer, resolvedVideo) {
+    if (!pendingEarlyHold || isPointerDown || isDragging) return;
+    if (!isVolumeEnabled()) {
+      pendingEarlyHold = null;
+      return;
+    }
+
+    const hold = pendingEarlyHold;
+    const p = resolvedPlayer || activePlayer || getPlayerElements().player;
+    if (!p) return;
+    const v = resolvedVideo || activeVideo || getPlayerElements().video;
+
+    const rect = p.getBoundingClientRect();
+    const isTargetInPlayer = hold.target && p.contains && p.contains(hold.target);
+    const isTargetInWatchArea = hold.target && hold.target.closest && !!hold.target.closest('ytd-watch-flexy, ytd-watch-grid, #player-container-outer, #player-container, #player, ytd-player, #movie_player');
+    const isCoordInPlayer = isInsidePlayerRect(hold.clientX, hold.clientY, rect);
+
+    if (isCoordInPlayer || isTargetInPlayer || isTargetInWatchArea) {
+      pendingEarlyHold = null;
+      startPointerGesture(p, v, { pointerId: hold.pointerId, target: hold.target, clientX: hold.clientX, clientY: hold.clientY }, true, hold.clientX, hold.clientY, hold.time);
+    }
+  }
+
   function ensureHUD() {
     const { player, video } = getPlayerElements();
-    if (!player || !video) {
+    if (!player) {
       if (activeVideo) {
         activeVideo.removeEventListener('ratechange', onRateChange);
         activeVideo = null;
@@ -287,11 +378,12 @@
       return false;
     }
 
-    if (activeVideo !== video) {
+    if (video && activeVideo !== video) {
       if (activeVideo) {
         activeVideo.removeEventListener('ratechange', onRateChange);
       }
       activeVideo = video;
+      disableNativeVideoDrag(activeVideo);
       activeVideo.addEventListener('ratechange', onRateChange, { passive: true });
 
       if (tabDesiredVolume !== null) {
@@ -302,6 +394,7 @@
     }
 
     activePlayer = player;
+    setupNativeSliderWatchers();
 
     if (!hud) {
       if (window.VolumeVisualizerHUD) {
@@ -313,15 +406,18 @@
       hud.mount(player);
     }
 
+    tryActivatePendingEarlyHold(player, video);
+
     return true;
   }
 
   function scheduleEnsureHUD() {
     if (hudEnsureTimer != null) return;
+    const delay = (activePlayer && activeVideo) ? 150 : 0;
     hudEnsureTimer = setTimeout(() => {
       hudEnsureTimer = null;
       ensureHUD();
-    }, 150);
+    }, delay);
   }
 
   function cancelYouTubeSpeedmaster() {
@@ -357,8 +453,19 @@
     }
   }
 
+  function isVideoSurfaceTarget(target) {
+    if (!target || !target.closest) return false;
+    return !!target.closest(
+      'video, .html5-video-container, .html5-main-video, .ytp-cued-thumbnail-overlay, .ytp-large-play-button, .ytp-spinner, .ytp-spinner-container, .ytp-offline-slate, .ytp-player-content'
+    );
+  }
+
   function isInteractiveElement(target) {
     if (!target) return false;
+
+    if (isVideoSurfaceTarget(target) && !target.closest('.ytp-chrome-bottom, .ytp-chrome-top, .ytp-popup, .ytp-settings-menu, .ytp-contextmenu, .ytp-volume-panel, .ytp-volume-slider')) {
+      return false;
+    }
 
     const excludedSelectors = [
       '.ytp-chrome-bottom',
@@ -395,17 +502,20 @@
   }
 
   function matchesTrigger(e) {
+    const isDown = e.type === 'pointerdown' || e.type === 'mousedown';
+    const hasButton = (btn) => isDown ? e.button === btn : (btn === 0 ? (e.buttons & 1) !== 0 : btn === 2 ? (e.buttons & 2) !== 0 : false);
+
     switch (config.dragTrigger) {
       case 'left':
-        return e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+        return hasButton(0) && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
       case 'right':
-        return e.button === 2;
+        return hasButton(2);
       case 'shift-left':
-        return e.button === 0 && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+        return hasButton(0) && e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
       case 'alt-left':
-        return e.button === 0 && e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
+        return hasButton(0) && e.altKey && !e.shiftKey && !e.ctrlKey && !e.metaKey;
       default:
-        return e.button === 0 && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
+        return hasButton(0) && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey;
     }
   }
 
@@ -415,10 +525,11 @@
     if (!slider) return DEFAULT_SLIDER_HANDLE_MAX;
     const handle = slider.querySelector('.ytp-volume-slider-handle');
     const sliderWidth = slider.clientWidth || slider.offsetWidth;
-    if (!sliderWidth) return DEFAULT_SLIDER_HANDLE_MAX;
-    const handleWidth = handle ? (handle.offsetWidth || 0) : 0;
-    const maxLimit = sliderWidth - handleWidth;
-    return maxLimit > 0 ? maxLimit : DEFAULT_SLIDER_HANDLE_MAX;
+    const handleWidth = handle ? (handle.offsetWidth || 12) : 12;
+    if (sliderWidth && sliderWidth >= 40) {
+      return Math.max(DEFAULT_SLIDER_HANDLE_MAX, sliderWidth - handleWidth);
+    }
+    return DEFAULT_SLIDER_HANDLE_MAX;
   }
 
   function syncNativeSliderUI(volumeFraction, isMuted) {
@@ -434,6 +545,12 @@
       panel.setAttribute('aria-valuetext', effectiveMuted ? '0% volume' : `${percent}% volume`);
     }
 
+    const slider = activePlayer.querySelector('.ytp-volume-slider');
+    if (slider) {
+      slider.setAttribute('aria-valuenow', effectiveMuted ? '0' : String(percent));
+      slider.setAttribute('aria-valuetext', effectiveMuted ? '0% volume' : `${percent}% volume`);
+    }
+
     const handle = activePlayer.querySelector('.ytp-volume-slider-handle');
     if (handle) {
       const maxLimit = getSliderHandleMax();
@@ -445,6 +562,98 @@
     if (muteBtn) {
       muteBtn.setAttribute('title', effectiveMuted ? 'Unmute (m)' : 'Mute (m)');
       muteBtn.setAttribute('aria-label', effectiveMuted ? 'Unmute' : 'Mute');
+      muteBtn.setAttribute('data-title-no-tooltip', effectiveMuted ? 'Unmute' : 'Mute');
+    }
+  }
+
+  function setupNativeSliderWatchers() {
+    if (!activePlayer) return;
+
+    const panel = activePlayer.querySelector('.ytp-volume-panel');
+    const handle = activePlayer.querySelector('.ytp-volume-slider-handle');
+    const slider = activePlayer.querySelector('.ytp-volume-slider');
+    const muteBtn = activePlayer.querySelector('.ytp-mute-button');
+    const volumeArea = activePlayer.querySelector('.ytp-volume-area') || panel;
+
+    const triggerSyncIfIdle = () => {
+      if (!isDragging && !isNativeSliderInteracting && tabDesiredVolume !== null) {
+        syncNativeSliderUI(tabDesiredVolume, tabDesiredMuted);
+        requestAnimationFrame(() => {
+          if (!isDragging && !isNativeSliderInteracting && tabDesiredVolume !== null) {
+            syncNativeSliderUI(tabDesiredVolume, tabDesiredMuted);
+          }
+        });
+      }
+    };
+
+    if (volumeArea && !volumeArea.dataset.ytVolWatched) {
+      volumeArea.dataset.ytVolWatched = 'true';
+      volumeArea.addEventListener('mouseenter', triggerSyncIfIdle, { passive: true });
+      volumeArea.addEventListener('pointerenter', triggerSyncIfIdle, { passive: true });
+      volumeArea.addEventListener('mouseover', triggerSyncIfIdle, { passive: true });
+      volumeArea.addEventListener('focusin', triggerSyncIfIdle, { passive: true });
+      volumeArea.addEventListener('transitionstart', triggerSyncIfIdle, { passive: true });
+      volumeArea.addEventListener('transitionend', triggerSyncIfIdle, { passive: true });
+    }
+
+    if (panel && !panel.dataset.ytVolWatched) {
+      panel.dataset.ytVolWatched = 'true';
+      panel.addEventListener('mouseenter', triggerSyncIfIdle, { passive: true });
+      panel.addEventListener('pointerenter', triggerSyncIfIdle, { passive: true });
+      panel.addEventListener('transitionstart', triggerSyncIfIdle, { passive: true });
+      panel.addEventListener('transitionend', triggerSyncIfIdle, { passive: true });
+    }
+
+    if (slider && !slider.dataset.ytVolWatched) {
+      slider.dataset.ytVolWatched = 'true';
+      slider.addEventListener('mouseenter', triggerSyncIfIdle, { passive: true });
+      slider.addEventListener('pointerenter', triggerSyncIfIdle, { passive: true });
+    }
+
+    if (muteBtn && !muteBtn.dataset.ytVolWatched) {
+      muteBtn.dataset.ytVolWatched = 'true';
+      muteBtn.addEventListener('mouseenter', triggerSyncIfIdle, { passive: true });
+      muteBtn.addEventListener('pointerenter', triggerSyncIfIdle, { passive: true });
+    }
+
+    if (panel && handle && (nativeSliderWatchedPanel !== panel || nativeSliderWatchedHandle !== handle)) {
+      if (nativeSliderObserver) {
+        nativeSliderObserver.disconnect();
+      }
+      nativeSliderWatchedPanel = panel;
+      nativeSliderWatchedHandle = handle;
+
+      nativeSliderObserver = new MutationObserver((mutations) => {
+        if (isDragging || isNativeSliderInteracting || tabDesiredVolume === null) return;
+
+        const clamped = toFiniteVolume(tabDesiredVolume, 0);
+        const percent = Math.round(clamped * 100);
+        const effectiveMuted = tabDesiredMuted || percent === 0;
+
+        for (const m of mutations) {
+          if (m.type === 'attributes') {
+            if (m.attributeName === 'style' && m.target === handle) {
+              const currentLeft = handle.style.left;
+              const maxLimit = getSliderHandleMax();
+              const expectedPos = effectiveMuted ? 0 : Math.max(0, Math.min(maxLimit, clamped * maxLimit));
+              const expectedStr = `${expectedPos.toFixed(1)}px`;
+              if (currentLeft && currentLeft !== expectedStr && Math.abs(parseFloat(currentLeft) - expectedPos) > 0.5) {
+                handle.style.left = expectedStr;
+              }
+            } else if (m.attributeName === 'aria-valuenow' && (m.target === panel || m.target === slider)) {
+              const currentAria = m.target.getAttribute('aria-valuenow');
+              const expectedAria = effectiveMuted ? '0' : String(percent);
+              if (currentAria !== expectedAria) {
+                syncNativeSliderUI(tabDesiredVolume, tabDesiredMuted);
+                break;
+              }
+            }
+          }
+        }
+      });
+
+      nativeSliderObserver.observe(panel, { attributes: true, attributeFilter: ['aria-valuenow', 'aria-valuetext', 'class'] });
+      nativeSliderObserver.observe(handle, { attributes: true, attributeFilter: ['style'] });
     }
   }
 
@@ -477,14 +686,25 @@
 
       tabDesiredVolume = clamped;
       tabDesiredMuted = isMuted;
+      noteUserVolumeChange();
 
-      // Keep the HUD on the compositor: do not re-measure layout every frame.
-      // Player size is stable during a drag (cached on pointerdown / resize).
+      if (activeVideo) {
+        try {
+          if (Math.abs(activeVideo.volume - clamped) > 0.01) {
+            activeVideo.volume = clamped;
+          }
+          if (activeVideo.muted !== isMuted) {
+            activeVideo.muted = isMuted;
+          }
+        } catch (e) {}
+      }
+
       syncWithMainWorldPlayer(intVol, isMuted);
 
       const sliderKey = `${intVol}:${isMuted ? 1 : 0}`;
       if (sliderKey !== lastNativeSliderKey) {
         lastNativeSliderKey = sliderKey;
+        persistVolume(clamped, isMuted);
         syncNativeSliderUI(clamped, isMuted);
       }
 
@@ -520,6 +740,7 @@
 
   function beginVolumeDrag() {
     isDragging = true;
+    noteUserVolumeChange();
     setDraggingClass(true);
     pausePlayerObserver();
     cancelYouTubeSpeedmaster();
@@ -550,6 +771,7 @@
   }
 
   function finishGesture(e, { fromLostCapture } = {}) {
+    pendingEarlyHold = null;
     if (!isPointerDown && !isDragging) {
       fastForwardLocked = false;
       activePointerId = null;
@@ -565,14 +787,6 @@
       armClickSuppression();
       if (config.dragTrigger === 'right' || (e && e.button === 2)) {
         armContextMenuSuppression();
-      }
-
-      if (e && e.cancelable) {
-        e.preventDefault();
-      }
-      if (e) {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
       }
 
       const clamped = toFiniteVolume(pendingVolume, tabDesiredVolume);
@@ -604,9 +818,102 @@
       captureEl = null;
     }
     activePointerId = null;
+
+    if (wasDragging) {
+      handbackMouseToYouTube(e);
+    }
+  }
+
+  function handbackMouseToYouTube(e) {
+    if (!activePlayer) return;
+
+    if (document.activeElement && activePlayer.contains(document.activeElement) && document.activeElement !== activePlayer) {
+      try {
+        document.activeElement.blur();
+      } catch (err) {}
+    }
+
+    const clientX = e && typeof e.clientX === 'number' ? e.clientX : -1;
+    const clientY = e && typeof e.clientY === 'number' ? e.clientY : -1;
+    const playerRect = activePlayer.getBoundingClientRect();
+
+    const isInside = clientX >= playerRect.left &&
+                     clientX <= playerRect.right &&
+                     clientY >= playerRect.top &&
+                     clientY <= playerRect.bottom;
+
+    if (!isInside) {
+      const leaveEventNames = ['pointerout', 'pointerleave', 'mouseleave', 'mouseout'];
+      for (const evtName of leaveEventNames) {
+        try {
+          const isPointer = evtName.startsWith('pointer');
+          const evt = isPointer
+            ? new PointerEvent(evtName, {
+                bubbles: evtName !== 'pointerleave',
+                cancelable: false,
+                view: window,
+                clientX: clientX,
+                clientY: clientY,
+                pointerType: 'mouse',
+                isPrimary: true
+              })
+            : new MouseEvent(evtName, {
+                bubbles: evtName !== 'mouseleave',
+                cancelable: false,
+                view: window,
+                clientX: clientX,
+                clientY: clientY
+              });
+          activePlayer.dispatchEvent(evt);
+          if (activeVideo) activeVideo.dispatchEvent(evt);
+        } catch (err) {}
+      }
+
+      if (clientX >= 0 && clientY >= 0) {
+        try {
+          const elUnderCursor = document.elementFromPoint(clientX, clientY);
+          if (elUnderCursor && !activePlayer.contains(elUnderCursor)) {
+            elUnderCursor.dispatchEvent(new PointerEvent('pointermove', {
+              bubbles: true,
+              cancelable: false,
+              view: window,
+              clientX,
+              clientY,
+              pointerType: 'mouse'
+            }));
+            elUnderCursor.dispatchEvent(new MouseEvent('mousemove', {
+              bubbles: true,
+              cancelable: false,
+              view: window,
+              clientX,
+              clientY
+            }));
+          }
+        } catch (err) {}
+      }
+    } else {
+      try {
+        activePlayer.dispatchEvent(new PointerEvent('pointermove', {
+          bubbles: true,
+          cancelable: false,
+          view: window,
+          clientX,
+          clientY,
+          pointerType: 'mouse'
+        }));
+        activePlayer.dispatchEvent(new MouseEvent('mousemove', {
+          bubbles: true,
+          cancelable: false,
+          view: window,
+          clientX,
+          clientY
+        }));
+      } catch (err) {}
+    }
   }
 
   function onTabInactive() {
+    pendingEarlyHold = null;
     if (isDragging || isPointerDown) {
       finishGesture(null);
     } else {
@@ -618,51 +925,127 @@
     }
   }
 
-  function onPointerDown(e) {
-    if (!e.isPrimary) return;
-    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return;
-
-    if (e.target && e.target.closest && e.target.closest('.ytp-volume-control, .ytp-volume-panel, .ytp-volume-slider, .ytp-mute-button')) {
-      return;
+  function startPointerGesture(player, video, e, fromEarlyHold = false, startClientX = e.clientX, startClientY = e.clientY, startTime = performance.now()) {
+    disableNativeVideoDrag(video);
+    ensureHUD();
+    activePlayer = player;
+    if (video && activeVideo !== video) {
+      if (activeVideo) {
+        activeVideo.removeEventListener('ratechange', onRateChange);
+      }
+      activeVideo = video;
+      activeVideo.addEventListener('ratechange', onRateChange, { passive: true });
     }
 
-    if (!isVolumeEnabled()) return;
-    if (isInlinePreview(e.target)) return;
-
-    const { player, video } = getPlayerElements();
-    if (!player || !video) return;
-    if (!player.contains(e.target)) return;
-    if (isInteractiveElement(e.target)) return;
-    if (!matchesTrigger(e)) return;
-
-    ensureHUD();
     isPointerDown = true;
     isDragging = false;
     fastForwardLocked = false;
     activePointerId = e.pointerId;
     captureEl = player;
-    pointerDownTime = performance.now();
+    pointerDownTime = startTime;
 
-    startX = e.clientX;
-    startY = e.clientY;
+    startX = startClientX;
+    startY = startClientY;
 
     if (tabDesiredVolume !== null) {
       initialVolume = tabDesiredMuted ? 0 : tabDesiredVolume;
-    } else {
+    } else if (video) {
       initialVolume = video.muted ? 0 : toFiniteVolume(video.volume, 1);
+    } else {
+      initialVolume = 1.0;
     }
     pendingVolume = initialVolume;
 
-    const rate = video.playbackRate;
-    savedPlaybackRate = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
+    if (video) {
+      const rate = video.playbackRate;
+      savedPlaybackRate = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
+    } else {
+      savedPlaybackRate = 1.0;
+    }
 
     cachedPlayerRect = player.getBoundingClientRect();
+    if (cachedPlayerRect.width < 32 && e.target && e.target.getBoundingClientRect) {
+      const targetRect = e.target.getBoundingClientRect();
+      if (targetRect.width > cachedPlayerRect.width) {
+        cachedPlayerRect = targetRect;
+      }
+    }
     const playerWidth = cachedPlayerRect.width > 0 ? cachedPlayerRect.width : window.innerWidth;
     const sensitivityRatio = Math.max(0.1, config.sensitivity / 100);
     cachedSpanWidth = playerWidth * sensitivityRatio;
+
+    if (fromEarlyHold) {
+      beginVolumeDrag();
+      pendingCursorX = startClientX;
+      pendingCursorY = startClientY;
+      scheduleVolumeUpdate();
+    }
+  }
+
+  function onPointerDown(e) {
+    if (!e.isPrimary) return;
+    if (e.pointerType === 'mouse' && e.button !== 0 && e.button !== 2) return;
+
+    if (e.target && e.target.closest && e.target.closest(NATIVE_VOLUME_SELECTOR)) {
+      isNativeSliderInteracting = true;
+      noteUserVolumeChange();
+      pendingEarlyHold = null;
+      return;
+    }
+
+    if (!isVolumeEnabled()) return;
+    if (isInlinePreview(e.target)) return;
+    if (isInteractiveElement(e.target)) return;
+    if (!matchesTrigger(e)) return;
+
+    const { player, video } = getPlayerFromTarget(e.target);
+    if (player) {
+      if (!player.contains(e.target) && e.target !== player) {
+        const rect = player.getBoundingClientRect();
+        if (!isInsidePlayerRect(e.clientX, e.clientY, rect)) {
+          return;
+        }
+      }
+      pendingEarlyHold = null;
+      startPointerGesture(player, video, e, false);
+    } else {
+      // Player not yet mounted or page is loading: store pending early hold
+      pendingEarlyHold = {
+        pointerId: e.pointerId,
+        pointerType: e.pointerType,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        time: performance.now(),
+        target: e.target
+      };
+    }
   }
 
   function onPointerMove(e) {
+    if (!isVolumeEnabled()) return;
+
+    if (!isPointerDown && !isDragging) {
+      if (pendingEarlyHold || matchesTrigger(e)) {
+        if (!isInteractiveElement(e.target)) {
+          const { player, video } = getPlayerFromTarget(e.target);
+          if (player) {
+            const rect = player.getBoundingClientRect();
+            const inside = isInsidePlayerRect(e.clientX, e.clientY, rect) ||
+                           (player.contains && player.contains(e.target)) ||
+                           (pendingEarlyHold && isInsidePlayerRect(pendingEarlyHold.clientX, pendingEarlyHold.clientY, rect));
+            if (inside) {
+              const startClientX = pendingEarlyHold ? pendingEarlyHold.clientX : e.clientX;
+              const startClientY = pendingEarlyHold ? pendingEarlyHold.clientY : e.clientY;
+              const startTime = pendingEarlyHold ? pendingEarlyHold.time : performance.now();
+              pendingEarlyHold = null;
+              startPointerGesture(player, video, e, true, startClientX, startClientY, startTime);
+            }
+          }
+        }
+      }
+      if (!isPointerDown) return;
+    }
+
     if (!isPointerDown || !activePlayer || fastForwardLocked) return;
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
 
@@ -672,7 +1055,7 @@
     const elapsed = performance.now() - pointerDownTime;
 
     if (!isDragging) {
-      // Lock only for YouTube's long-press 2x, not for a user-chosen playback speed.
+      // Avoid triggering drag during YouTube 2x speed long-press
       const speedmasterActive = activePlayer.classList.contains('ytp-speedmaster-active');
       const speedmasterJustStarted = activeVideo &&
         Number.isFinite(savedPlaybackRate) &&
@@ -687,6 +1070,10 @@
       if (distance > DRAG_THRESHOLD_PX) {
         beginVolumeDrag();
       } else {
+        if (distance > 2) {
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+        }
         return;
       }
     }
@@ -723,28 +1110,27 @@
   }
 
   function onPointerUp(e) {
+    pendingEarlyHold = null;
     if (!isPointerDown && !isDragging) return;
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
-    // Our speedmaster abort synthesizes pointercancel; only the browser's
-    // trusted cancel (tab switch, OS gesture, etc.) should end the drag.
     if (e.type === 'pointercancel' && e.isTrusted === false) return;
     finishGesture(e);
   }
 
   function onLostPointerCapture(e) {
+    pendingEarlyHold = null;
     if (!isPointerDown && !isDragging) return;
     if (activePointerId !== null && e.pointerId !== activePointerId) return;
     finishGesture(e, { fromLostCapture: true });
   }
 
-  // Pointerup does not cancel compatibility mouseup. YouTube play/pause listens
-  // to mouseup/click on the video; vertical drags often release over the play
-  // button or the video surface, which would toggle playback without this.
+  // Allow mouseup to reach YouTube naturally to reset its internal mouse-down state.
+  // The subsequent click event is intercepted by onClickCapture to prevent play/pause toggle.
   function onCompatMouseUp(e) {
-    if (!suppressNextClick) return;
-    if (e.cancelable) e.preventDefault();
-    e.stopPropagation();
-    e.stopImmediatePropagation();
+    pendingEarlyHold = null;
+    if (isNativeSliderInteracting) {
+      setTimeout(() => { isNativeSliderInteracting = false; }, 120);
+    }
   }
 
   function onClickCapture(e) {
@@ -757,6 +1143,26 @@
         clearTimeout(suppressClickTimer);
         suppressClickTimer = null;
       }
+    }
+  }
+
+  function onDragStartCapture(e) {
+    if (!isVolumeEnabled()) return;
+    if (isPointerDown || isDragging) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    const target = e.target;
+    if (target && target.closest && target.closest('#movie_player, .html5-video-player, ytd-player, video')) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
+  function onSelectStartCapture(e) {
+    if (isPointerDown || isDragging) {
+      e.preventDefault();
     }
   }
 
@@ -776,33 +1182,41 @@
     }
   }
 
-  function clampNativeSliderHandle() {
-    if (isDragging) return;
-    if (!activePlayer) return;
-    const handle = activePlayer.querySelector('.ytp-volume-slider-handle');
-    if (handle && handle.style && handle.style.left) {
-      const leftVal = parseFloat(handle.style.left);
-      const maxLimit = getSliderHandleMax();
-      if (Number.isFinite(leftVal) && leftVal > maxLimit) {
-        handle.style.left = `${maxLimit.toFixed(1)}px`;
-      }
-    }
-  }
-
   function init() {
     loadConfig();
 
     window.addEventListener('pointerdown', onPointerDown, true);
     window.addEventListener('pointermove', onPointerMove, { passive: false, capture: true });
-    window.addEventListener('pointerup', onPointerUp, true);
+    window.addEventListener('pointerup', (e) => {
+      onPointerUp(e);
+      if (isNativeSliderInteracting) {
+        setTimeout(() => { isNativeSliderInteracting = false; }, 120);
+      }
+    }, true);
     window.addEventListener('pointercancel', onPointerUp, true);
     window.addEventListener('lostpointercapture', onLostPointerCapture, true);
-    window.addEventListener('mouseup', onCompatMouseUp, true);
+    window.addEventListener('mouseup', (e) => {
+      onCompatMouseUp(e);
+      if (isNativeSliderInteracting) {
+        setTimeout(() => { isNativeSliderInteracting = false; }, 120);
+      }
+    }, true);
     window.addEventListener('click', onClickCapture, true);
     window.addEventListener('auxclick', onClickCapture, true);
     window.addEventListener('contextmenu', onContextMenuCapture, true);
+    window.addEventListener('dragstart', onDragStartCapture, true);
+    document.addEventListener('selectstart', onSelectStartCapture, true);
 
-    window.addEventListener('pointermove', clampNativeSliderHandle, { passive: true, capture: true });
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'm' || e.key === 'M' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea' && (!e.target.isContentEditable)) {
+          isNativeSliderInteracting = true;
+          noteUserVolumeChange();
+          setTimeout(() => { isNativeSliderInteracting = false; }, 350);
+        }
+      }
+    }, true);
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -811,25 +1225,37 @@
     });
 
     window.addEventListener('yt-navigate-finish', () => {
+      userVolumeHoldUntil = 0;
       setTimeout(ensureHUD, 100);
+      setTimeout(ensureHUD, 500);
     });
     window.addEventListener('spfdone', () => {
+      userVolumeHoldUntil = 0;
       setTimeout(ensureHUD, 100);
+      setTimeout(ensureHUD, 500);
     });
 
     window.addEventListener('resize', () => {
       if (activePlayer) {
         cachedPlayerRect = activePlayer.getBoundingClientRect();
+        if (!isDragging && !isNativeSliderInteracting && tabDesiredVolume !== null) {
+          syncNativeSliderUI(tabDesiredVolume, tabDesiredMuted);
+        }
       }
     }, { passive: true });
 
     startPlayerObserver();
     ensureHUD();
+
+    let bootAttempts = 0;
+    const bootInterval = setInterval(() => {
+      bootAttempts++;
+      const ready = ensureHUD();
+      if ((ready && activeVideo) || bootAttempts > 80) {
+        clearInterval(bootInterval);
+      }
+    }, 50);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  init();
 })();

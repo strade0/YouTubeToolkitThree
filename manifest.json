@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Toolkit",
-  "version": "1.0.4",
-  "description": "Volume drag, layout trimmer, and auto Jump Ahead — YouTube watch-page tools in one extension, each with its own toggle.",
+  "version": "1.0.7",
+  "description": "Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — YouTube watch-page tools in one extension, each with its own toggle.",
   "permissions": [
     "storage"
   ],
@@ -42,6 +42,12 @@
     {
       "matches": ["*://*.youtube.com/*"],
       "js": ["features/skipit/content.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "css": ["features/speed/styles.css"],
+      "js": ["features/speed/content.js"],
       "run_at": "document_start"
     }
   ]

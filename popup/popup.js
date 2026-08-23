@@ -1,12 +1,11 @@
-/**
- * YouTube Toolkit popup — master toggle plus Volume, Layout, and SkipIt panels.
- */
+// Extension popup settings controller.
 
 document.addEventListener('DOMContentLoaded', () => {
   const MASTER_KEY = 'toolkit.masterEnabled';
   const VOLUME_PREFIX = 'volume.';
   const TRIMMER_PREFIX = 'trimmer.';
   const SKIPIT_PREFIX = 'skipit.';
+  const SPEED_PREFIX = 'speed.';
 
   const VOLUME_DEFAULTS = {
     enabled: true,
@@ -22,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
     align: 'center',
     allPages: false,
     trimTheater: false,
-    showHud: true,
+    showHud: false,
     enableHotkeys: true
   };
 
@@ -32,10 +31,21 @@ document.addEventListener('DOMContentLoaded', () => {
     keys: { ArrowRight: true, KeyL: true }
   };
 
+  const SPEED_DEFAULTS = {
+    enabled: true,
+    targetSpeed: 2.0
+  };
+
   let masterEnabled = true;
   let volumeConfig = { ...VOLUME_DEFAULTS };
   let trimmerConfig = { ...TRIMMER_DEFAULTS };
   let skipitConfig = { ...SKIPIT_DEFAULTS };
+  let speedConfig = { ...SPEED_DEFAULTS };
+
+  const versionEl = document.getElementById('extension-version');
+  if (versionEl && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+    versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
 
   function prefixKeys(prefix, obj) {
     const out = {};
@@ -91,6 +101,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setDisabled(document.getElementById('volume-controls'), !volumeConfig.enabled);
     setDisabled(document.getElementById('trimmer-controls'), !trimmerConfig.enabled);
     setDisabled(document.getElementById('skipit-controls'), !skipitConfig.enabled);
+    setDisabled(document.getElementById('speed-controls'), !speedConfig.enabled);
     updateSkipitStatus();
   }
 
@@ -444,12 +455,44 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // ----- Speed -----
+  const speedEnabled = document.getElementById('speed-enabled');
+  const speedTargetSelect = document.getElementById('speed-target-select');
+  const speedVersionEl = document.getElementById('speed-version');
+  if (speedVersionEl && typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest) {
+    speedVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+
+  function renderSpeed() {
+    if (speedEnabled) speedEnabled.checked = speedConfig.enabled;
+    if (speedTargetSelect) speedTargetSelect.value = String(speedConfig.targetSpeed || 2);
+  }
+
+  function saveSpeed(key, value) {
+    speedConfig[key] = value;
+    saveSync({ [SPEED_PREFIX + key]: value });
+  }
+
+  if (speedEnabled) {
+    speedEnabled.addEventListener('change', (e) => {
+      saveSpeed('enabled', e.target.checked);
+      updateDisabledStates();
+    });
+  }
+
+  if (speedTargetSelect) {
+    speedTargetSelect.addEventListener('change', (e) => {
+      saveSpeed('targetSpeed', parseFloat(e.target.value) || 2.0);
+    });
+  }
+
   // Load
   function init() {
     const syncDefaults = {
       [MASTER_KEY]: true,
       ...prefixKeys(VOLUME_PREFIX, VOLUME_DEFAULTS),
-      ...prefixKeys(TRIMMER_PREFIX, TRIMMER_DEFAULTS)
+      ...prefixKeys(TRIMMER_PREFIX, TRIMMER_DEFAULTS),
+      ...prefixKeys(SPEED_PREFIX, SPEED_DEFAULTS)
     };
 
     const apply = () => {
@@ -457,6 +500,7 @@ document.addEventListener('DOMContentLoaded', () => {
       renderVolume();
       renderTrimmer();
       renderSkipit();
+      renderSpeed();
       updateStatsDisplay();
       updateDisabledStates();
     };
@@ -470,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
       masterEnabled = syncItems[MASTER_KEY] !== false;
       volumeConfig = unprefix(VOLUME_PREFIX, syncItems, VOLUME_DEFAULTS);
       trimmerConfig = unprefix(TRIMMER_PREFIX, syncItems, TRIMMER_DEFAULTS);
+      speedConfig = unprefix(SPEED_PREFIX, syncItems, SPEED_DEFAULTS);
       chrome.storage.local.get(prefixKeys(SKIPIT_PREFIX, SKIPIT_DEFAULTS), (localItems) => {
         skipitConfig = unprefix(SKIPIT_PREFIX, localItems, SKIPIT_DEFAULTS);
         apply();

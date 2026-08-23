@@ -17,7 +17,7 @@
         </div>
         <div class="brand-text">
           <h1>YouTube Toolkit</h1>
-          <span class="subtitle">Volume · Layout · Skip</span>
+          <span class="subtitle">Volume · Layout · Skip · Speed</span>
         </div>
       </div>
       <label class="toggle" title="Turn all features on or off">
@@ -30,6 +30,7 @@
       <button type="button" class="tab active" data-tab="volume" role="tab" aria-selected="true">Volume</button>
       <button type="button" class="tab" data-tab="trimmer" role="tab" aria-selected="false">Layout</button>
       <button type="button" class="tab" data-tab="skipit" role="tab" aria-selected="false">SkipIt</button>
+      <button type="button" class="tab" data-tab="speed" role="tab" aria-selected="false">Speed</button>
     </nav>
 
     <!-- Volume Drag -->
@@ -197,7 +198,7 @@
               <span class="option-desc">Floating slider on YouTube</span>
             </div>
             <span class="toggle sm">
-              <input type="checkbox" id="toggle-hud" checked>
+              <input type="checkbox" id="toggle-hud">
               <span class="toggle-track"></span>
             </span>
           </label>
@@ -271,7 +272,67 @@
 
         <div class="panel-footer">
           <button type="button" class="link-btn" id="btn-skipit-reset">Reset statistics</button>
-          <span class="version">v1.0.0</span>
+          <span class="version" id="extension-version"></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2x Speed Lock -->
+    <section class="panel" id="panel-speed" data-feature="speed">
+      <div class="panel-head">
+        <div>
+          <h2>2x Speed Lock</h2>
+          <p>Hold left-click & hover top 2x icon to lock speed</p>
+        </div>
+        <label class="toggle sm" title="Enable 2x Speed Lock">
+          <input type="checkbox" id="speed-enabled" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="panel-body" id="speed-controls">
+        <div class="preview-card speed-preview">
+          <div class="preview-icon">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+          </div>
+          <div class="preview-body">
+            <div class="speed-pill-badge">
+              <span>2x</span>
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                <polygon points="5 4 15 12 5 20 5 4"></polygon>
+                <polygon points="13 4 23 12 13 20 13 4"></polygon>
+              </svg>
+            </div>
+            <div class="speed-sublabel">Hover & release to lock or reset</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="speed-target-select">Target lock speed</label>
+          <select id="speed-target-select">
+            <option value="2">2.0x (Default)</option>
+            <option value="1.5">1.5x</option>
+            <option value="1.75">1.75x</option>
+            <option value="2.5">2.5x</option>
+            <option value="3">3.0x</option>
+          </select>
+          <p class="hint">Releasing over the 2x icon locks this speed. Doing it again resets back to 1.0x (Normal).</p>
+        </div>
+
+        <div class="how-to-card">
+          <span class="card-title">How it works</span>
+          <ol class="steps-list">
+            <li><strong>Hold Left-Click:</strong> Video speeds up to 2x (YouTube built-in).</li>
+            <li><strong>Hover 2x Icon:</strong> Drag cursor up over the 2x pill at top of video.</li>
+            <li><strong>Let Go:</strong> Releases into continuous 2x playback (syncs settings menu).</li>
+            <li><strong>Reset to 1x:</strong> Hold and release over the 2x icon again.</li>
+          </ol>
+        </div>
+
+        <div class="panel-footer">
+          <span class="version" id="speed-version"></span>
         </div>
       </div>
     </section>

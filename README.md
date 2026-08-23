@@ -1,12 +1,13 @@
 # YouTube Toolkit
 
-Volume drag, layout trimmer, and auto Jump Ahead — three YouTube tools in one Chrome extension.
+Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — YouTube tools in one Chrome extension.
 
 ---
 
 ## ✨ Features
 
 - **Volume Drag**: Drag horizontally across the video to adjust volume, with a floating HUD visualizer above your cursor.
+- **2x Speed Lock**: Hold left-click to use YouTube's built-in 2x speed, then hover over the top 2x badge and release to lock 2x speed (or reset back to 1x). Fully synchronized with YouTube's bottom-right playback speed menu.
 - **Layout Trimmer**: Narrow YouTube’s extra-wide layout, resize the suggested-videos sidebar, and align the page (left / center / right).
 - **SkipIt**: After a single skip keypress (Right Arrow or L), automatically click YouTube’s native **Jump ahead** button.
 - **Toggles**: Turn any one feature on, or use the header switch to turn everything on or off.

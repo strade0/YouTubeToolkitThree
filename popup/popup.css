@@ -141,7 +141,7 @@ body {
 
 .tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   padding: 4px;
   background: var(--bg-elev);
@@ -691,3 +691,55 @@ kbd {
   font-size: 11px;
   color: var(--text-3);
 }
+
+/* Speed Panel */
+.speed-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.speed-pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #333;
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.speed-sublabel {
+  font-size: 11px;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+
+.how-to-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.steps-list {
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.4;
+}
+
+.steps-list strong {
+  color: var(--text);
+}
+

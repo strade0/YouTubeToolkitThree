@@ -1,17 +1,13 @@
-/* YouTube Layout Width Trimmer - Content Styles */
+/* Layout width trimmer styles */
 
 :root {
   --yt-trimmer-max-width: 1440px;
   --yt-trimmer-sidebar-width: 400px;
   --yt-trimmer-transition: max-width 0.15s ease-out, width 0.15s ease-out;
+  --yt-trimmer-player-max-height: calc(100vh - var(--ytd-toolbar-height, 56px) - 32px);
 }
 
-/* ==========================================================
-   1. Watch Page Layout Resizing
-   ========================================================== */
-
-/* Constrain the columns row — not #primary, or the player stays as wide as
-   the whole row (including sidebar) and clips settings / fullscreen icons. */
+/* Watch page layout */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #columns.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #columns {
   max-width: var(--yt-trimmer-max-width) !important;
@@ -25,7 +21,6 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscre
   flex: 1 1 auto !important;
 }
 
-/* Constrain the outer container on watch page */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #columns.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #columns {
   width: 100% !important;
@@ -34,20 +29,25 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscre
   padding-right: 16px !important;
 }
 
-/* When trim theater mode is also enabled */
+/* Theater mode */
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) #player-full-bleed-container,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) #player-container-outer,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) #full-bleed-container,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) #columns.ytd-watch-flexy {
-  max-width: var(--yt-trimmer-max-width) !important;
+  max-width: min(var(--yt-trimmer-max-width), calc((100vh - var(--ytd-toolbar-height, 56px)) * var(--yt-trimmer-video-ratio, calc(var(--ytd-watch-flexy-width-ratio, 16) / var(--ytd-watch-flexy-height-ratio, 9))))) !important;
+  max-height: calc(100vh - var(--ytd-toolbar-height, 56px)) !important;
   margin-left: auto !important;
   margin-right: auto !important;
 }
 
-/* ==========================================================
-   2. All Pages (Browse / Home / Subscriptions / Search)
-   ========================================================== */
+html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) #movie_player,
+html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) .html5-video-player,
+html[data-yt-trimmer-enabled="true"][data-yt-trimmer-theater="true"] ytd-watch-flexy[theater]:not([fullscreen]) video {
+  max-height: calc(100vh - var(--ytd-toolbar-height, 56px)) !important;
+  object-fit: contain !important;
+}
 
+/* Browse, Home, Subscriptions, Search pages */
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-all-pages="true"] ytd-browse:not([page-subtype="channels"]) #primary,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-all-pages="true"] ytd-browse[page-subtype="home"] #contents.ytd-rich-grid-renderer,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-all-pages="true"] ytd-browse[page-subtype="subscriptions"] #contents.ytd-rich-grid-renderer,
@@ -61,18 +61,13 @@ html[data-yt-trimmer-enabled="true"][data-yt-trimmer-all-pages="true"] ytd-two-c
   transition: var(--yt-trimmer-transition) !important;
 }
 
-/* ==========================================================
-   3. Alignment Controls
-   ========================================================== */
-
-/* Centered Alignment (Default) */
+/* Alignment */
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="center"] ytd-watch-flexy:not([theater]):not([fullscreen]) #columns.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="center"] ytd-watch-grid:not([theater]):not([fullscreen]) #columns {
   margin-left: auto !important;
   margin-right: auto !important;
 }
 
-/* Left Alignment */
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="left"] ytd-watch-flexy:not([theater]):not([fullscreen]) #columns.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="left"] ytd-watch-grid:not([theater]):not([fullscreen]) #columns,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="left"] ytd-browse #contents.ytd-rich-grid-renderer {
@@ -80,7 +75,6 @@ html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="left"] ytd-browse #c
   margin-right: auto !important;
 }
 
-/* Right Alignment */
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="right"] ytd-watch-flexy:not([theater]):not([fullscreen]) #columns.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="right"] ytd-watch-grid:not([theater]):not([fullscreen]) #columns,
 html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="right"] ytd-browse #contents.ytd-rich-grid-renderer {
@@ -88,30 +82,52 @@ html[data-yt-trimmer-enabled="true"][data-yt-trimmer-align="right"] ytd-browse #
   margin-right: 16px !important;
 }
 
-/* ==========================================================
-   4. Video Player Responsiveness within Trimmed Layout
-   ========================================================== */
-
-/* Player must follow the actual primary column width — leftover theater/fullscreen
-   inline sizes otherwise overflow and clip the right-side chrome icons. */
+/* Video Player */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #player,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #player,
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #player-container-outer,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #player-container-outer,
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #player-container,
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #player-container-inner,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #player-container,
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #ytd-player,
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) ytd-player {
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #ytd-player,
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) ytd-player,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) ytd-player {
+  width: 100% !important;
+  max-width: min(100%, calc(var(--yt-trimmer-player-max-height) * var(--yt-trimmer-video-ratio, calc(var(--ytd-watch-flexy-width-ratio, 16) / var(--ytd-watch-flexy-height-ratio, 9))))) !important;
+  max-height: var(--yt-trimmer-player-max-height) !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #player-container-inner,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #player-container-inner {
   width: 100% !important;
   max-width: 100% !important;
+  max-height: var(--yt-trimmer-player-max-height) !important;
 }
 
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #movie_player,
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .html5-video-player {
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #movie_player,
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .html5-video-player,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .html5-video-player {
   width: 100% !important;
   max-width: 100% !important;
+  max-height: var(--yt-trimmer-player-max-height) !important;
+}
+
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #movie_player video,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #movie_player video,
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .html5-video-player video,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .html5-video-player video {
+  max-height: var(--yt-trimmer-player-max-height) !important;
+  object-fit: contain !important;
 }
 
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-chrome-bottom,
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-chrome-top {
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .ytp-chrome-bottom,
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-chrome-top,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .ytp-chrome-top {
   width: auto !important;
   max-width: none !important;
   left: 12px !important;
@@ -119,30 +135,26 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscr
 }
 
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-gradient-bottom,
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-gradient-top {
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .ytp-gradient-bottom,
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-gradient-top,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .ytp-gradient-top {
   width: 100% !important;
   left: 0 !important;
   right: 0 !important;
 }
 
-/* Only the outer bar — chapter hover containers must keep YouTube's per-chapter
-   pixel widths or every chapter paints a full-width duplicate red timeline. */
-html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-chrome-bottom .ytp-progress-bar-container {
+html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) .ytp-chrome-bottom .ytp-progress-bar-container,
+html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) .ytp-chrome-bottom .ytp-progress-bar-container {
   width: 100% !important;
   max-width: 100% !important;
 }
 
-/* Fix chat or sidebar overflow when layout is constrained */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy #secondary.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"] ytd-watch-grid #secondary {
   flex-shrink: 0 !important;
 }
 
-/* ==========================================================
-   4b. Suggested Videos & Sidebar Width Scaling
-   ========================================================== */
-
-/* Constrain and scale sidebar */
+/* Sidebar & suggested videos */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary.ytd-watch-flexy,
 html[data-yt-trimmer-enabled="true"] ytd-watch-grid:not([theater]):not([fullscreen]) #secondary,
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscreen]) #secondary-inner {
@@ -153,7 +165,6 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-flexy:not([theater]):not([fullscr
   transition: var(--yt-trimmer-transition) !important;
 }
 
-/* Make suggested video cards and thumbnails scale proportionally */
 html[data-yt-trimmer-enabled="true"] ytd-compact-video-renderer,
 html[data-yt-trimmer-enabled="true"] ytd-compact-playlist-renderer,
 html[data-yt-trimmer-enabled="true"] ytd-compact-radio-renderer {
@@ -177,7 +188,6 @@ html[data-yt-trimmer-enabled="true"] #secondary ytd-thumbnail {
   transition: var(--yt-trimmer-transition) !important;
 }
 
-/* Adjust title and text in suggested videos to prevent oversized typography */
 html[data-yt-trimmer-enabled="true"] ytd-compact-video-renderer #video-title,
 html[data-yt-trimmer-enabled="true"] ytd-compact-playlist-renderer #video-title {
   font-size: clamp(11px, calc(var(--yt-trimmer-sidebar-width) * 0.038), 14px) !important;
@@ -192,7 +202,7 @@ html[data-yt-trimmer-enabled="true"] ytd-compact-video-renderer .badge-shape-wiz
   font-size: clamp(10px, calc(var(--yt-trimmer-sidebar-width) * 0.032), 12px) !important;
 }
 
-/* Fullscreen must ALWAYS be unrestricted */
+/* Fullscreen */
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy[fullscreen],
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy[fullscreen] #player-container-outer,
 html[data-yt-trimmer-enabled="true"] ytd-watch-flexy[fullscreen] #player-container-inner,
@@ -202,10 +212,7 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-flexy[fullscreen] #movie_player {
   margin: 0 !important;
 }
 
-/* ==========================================================
-   5. In-Page HUD / Floating Resizer Widget
-   ========================================================== */
-
+/* Floating HUD */
 #yt-trimmer-hud {
   position: fixed;
   bottom: 24px;
@@ -341,7 +348,7 @@ html[data-yt-trimmer-enabled="true"] ytd-watch-flexy[fullscreen] #movie_player {
   color: #fff;
 }
 
-/* In-page Toast Notification */
+/* Toast Notification */
 #yt-trimmer-toast {
   position: fixed;
   top: 72px;

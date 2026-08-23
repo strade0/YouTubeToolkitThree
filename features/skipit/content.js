@@ -1,7 +1,4 @@
-/**
- * YouTube SkipIt - Content Script
- * Auto-clicks the native "Jump ahead" button after a single skip keypress.
- */
+// SkipIt content script: automatically clicks the native Jump Ahead button on skip.
 
 (function () {
   'use strict';
@@ -151,16 +148,12 @@
       button.style.transition = originalTransition;
     }, 100);
 
-    button.click();
-
-    const mouseEvents = ['mousedown', 'mouseup', 'click'];
-    mouseEvents.forEach((eventType) => {
-      const event = new MouseEvent(eventType, {
+    ['mousedown', 'mouseup', 'click'].forEach((eventType) => {
+      button.dispatchEvent(new MouseEvent(eventType, {
         view: window,
         bubbles: true,
         cancelable: true
-      });
-      button.dispatchEvent(event);
+      }));
     });
 
     chrome.storage.local.get(
@@ -178,6 +171,7 @@
 
   window.addEventListener('keydown', (event) => {
     if (!isSkipItEnabled() || isTypingInInput()) return;
+    if (event.ctrlKey || event.altKey || event.metaKey) return;
 
     const isArrowRight = event.key === 'ArrowRight' && settings.keys.ArrowRight;
     const isKeyL = event.key.toLowerCase() === 'l' && settings.keys.KeyL;

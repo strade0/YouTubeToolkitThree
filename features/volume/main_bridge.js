@@ -1,9 +1,4 @@
-/**
- * YouTube Viewport Volume Drag - Main World Bridge
- * Executes in world: "MAIN" (100% CSP compliant, zero inline script violations).
- * Directly interfaces with YouTube's player API to manage true master volume,
- * bypassing video element loudness normalization feedback loops.
- */
+// Main world bridge: interfaces directly with the YouTube player API.
 
 (function () {
   'use strict';
@@ -16,10 +11,18 @@
     'yt-player-volume'
   ]);
 
+  const NATIVE_VOLUME_SELECTOR = '.ytp-volume-control, .ytp-volume-panel, .ytp-volume-slider, .ytp-mute-button, .ytp-volume-area';
+
   let attachedPlayer = null;
   let attachedVideo = null;
   let isInternalBridgeChange = false;
+  let isNativeSliderInteracting = false;
   let bridgeChangeGen = 0;
+  let startupLockTimer = null;
+  let isStartupPhase = true;
+  let pendingStartupApplyTimers = [];
+  let bootApplyTimer = null;
+  let initIntervalId = null;
 
   window.addEventListener('storage', (e) => {
     if (e.key && VOLUME_STORAGE_KEYS.has(e.key)) {
@@ -48,12 +51,20 @@
       return moviePlayer;
     }
     const watchPlayer = document.querySelector(
-      'ytd-watch-flexy .html5-video-player, ytd-watch-grid .html5-video-player, #shorts-player, ytd-miniplayer .html5-video-player'
+      'ytd-watch-flexy .html5-video-player, ytd-watch-grid .html5-video-player, ytd-player .html5-video-player, #shorts-player, ytd-miniplayer .html5-video-player'
     );
     if (watchPlayer && !isInlinePreview(watchPlayer)) {
       return watchPlayer;
     }
     return null;
+  }
+
+  function getPlayerVideo(player) {
+    if (player && player.querySelector) {
+      const nested = player.querySelector('video');
+      if (nested) return nested;
+    }
+    return document.querySelector('#movie_player video, .html5-video-player video, ytd-player video');
   }
 
   function toFiniteIntVolume(value) {
@@ -62,8 +73,33 @@
     return Math.max(0, Math.min(100, Math.round(n)));
   }
 
+  function getSavedDesiredVolume() {
+    try {
+      const saved = localStorage.getItem('yt_extension_saved_volume');
+      if (saved !== null) {
+        const vol = parseFloat(saved);
+        if (Number.isFinite(vol)) {
+          const isMuted = localStorage.getItem('yt_extension_saved_muted') === 'true';
+          return {
+            volume: Math.max(0, Math.min(100, Math.round(vol * 100))),
+            isMuted: isMuted
+          };
+        }
+      }
+    } catch (e) {}
+    return null;
+  }
+
   function onPlayerVolumeChange() {
     if (isInternalBridgeChange) return;
+
+    if (isStartupPhase && !isNativeSliderInteracting) {
+      const saved = getSavedDesiredVolume();
+      if (saved !== null) {
+        setYouTubePlayerVolume(saved.volume, saved.isMuted);
+        return;
+      }
+    }
 
     try {
       const player = getPlayer();
@@ -76,10 +112,43 @@
       window.dispatchEvent(new CustomEvent('yt-player-volume-changed', {
         detail: {
           volume: vol,
-          isMuted: isMuted
+          isMuted: isMuted,
+          fromUserNativeInteraction: isNativeSliderInteracting
         }
       }));
     } catch (e) {}
+  }
+
+  function setupNativeInteractionListeners() {
+    const onStart = (e) => {
+      const target = e.target;
+      if (target && target.closest && target.closest(NATIVE_VOLUME_SELECTOR)) {
+        isNativeSliderInteracting = true;
+        endStartupPhase();
+      }
+    };
+    const onEnd = () => {
+      if (isNativeSliderInteracting) {
+        setTimeout(() => {
+          isNativeSliderInteracting = false;
+        }, 120);
+      }
+    };
+
+    window.addEventListener('pointerdown', onStart, true);
+    window.addEventListener('mousedown', onStart, true);
+    window.addEventListener('pointerup', onEnd, true);
+    window.addEventListener('mouseup', onEnd, true);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'm' || e.key === 'M' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea' && (!e.target.isContentEditable)) {
+          isNativeSliderInteracting = true;
+          endStartupPhase();
+          setTimeout(() => { isNativeSliderInteracting = false; }, 350);
+        }
+      }
+    }, true);
   }
 
   function setupPlayerListeners() {
@@ -107,6 +176,13 @@
       }
       attachedVideo = video;
       video.addEventListener('volumechange', onPlayerVolumeChange, { passive: true });
+      video.addEventListener('loadedmetadata', () => {
+        applySavedVolumeOnStartup();
+      }, { passive: true });
+      video.addEventListener('playing', () => {
+        if (isStartupPhase) applySavedVolumeOnStartup();
+      }, { passive: true });
+      applySavedVolumeOnStartup();
     }
   }
 
@@ -122,67 +198,174 @@
 
     try {
       const player = getPlayer();
-      if (player && typeof player.setVolume === 'function') {
-        const gen = ++bridgeChangeGen;
-        isInternalBridgeChange = true;
-        try {
+      const gen = ++bridgeChangeGen;
+      isInternalBridgeChange = true;
+      try {
+        if (player && typeof player.setVolume === 'function') {
           player.setVolume(intVol);
           if (isMuted || intVol === 0) {
             if (typeof player.mute === 'function') player.mute();
           } else if (typeof player.isMuted === 'function' && player.isMuted()) {
             if (typeof player.unMute === 'function') player.unMute();
           }
-        } catch (inner) {
-          releaseInternalLock(gen);
-          return;
         }
-        // Wait two frames so YouTube's own volumechange is still treated as internal.
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => releaseInternalLock(gen));
-        });
-      }
+
+        const video = getPlayerVideo(player);
+        if (video) {
+          const fraction = intVol / 100;
+          if (Math.abs(video.volume - fraction) > 0.01) {
+            video.volume = fraction;
+          }
+          if (video.muted !== (isMuted || intVol === 0)) {
+            video.muted = !!(isMuted || intVol === 0);
+          }
+        }
+      } catch (inner) {}
+
+      // Wait two frames so YouTube's own volumechange is still treated as internal.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => releaseInternalLock(gen));
+      });
     } catch (e) {
       isInternalBridgeChange = false;
     }
   }
 
   function applySavedVolumeOnStartup() {
+    if (!isStartupPhase) return;
     try {
       setupPlayerListeners();
-      const saved = localStorage.getItem('yt_extension_saved_volume');
+      const saved = getSavedDesiredVolume();
       if (saved !== null) {
-        const vol = parseFloat(saved);
-        if (!Number.isFinite(vol)) return;
-        const isMuted = localStorage.getItem('yt_extension_saved_muted') === 'true';
-        const intVol = Math.round(Math.max(0, Math.min(1, vol)) * 100);
-        setYouTubePlayerVolume(intVol, isMuted);
+        setYouTubePlayerVolume(saved.volume, saved.isMuted);
       }
     } catch (e) {}
   }
 
+  function clearPendingStartupApplies() {
+    for (let i = 0; i < pendingStartupApplyTimers.length; i++) {
+      clearTimeout(pendingStartupApplyTimers[i]);
+    }
+    pendingStartupApplyTimers = [];
+    if (bootApplyTimer != null) {
+      clearTimeout(bootApplyTimer);
+      bootApplyTimer = null;
+    }
+  }
+
+  function endStartupPhase() {
+    isStartupPhase = false;
+    if (startupLockTimer) {
+      clearTimeout(startupLockTimer);
+      startupLockTimer = null;
+    }
+    clearPendingStartupApplies();
+    if (initIntervalId != null) {
+      clearInterval(initIntervalId);
+      initIntervalId = null;
+    }
+  }
+
+  function scheduleStartupApply(delay) {
+    const id = setTimeout(() => {
+      pendingStartupApplyTimers = pendingStartupApplyTimers.filter((timerId) => timerId !== id);
+      applySavedVolumeOnStartup();
+    }, delay);
+    pendingStartupApplyTimers.push(id);
+  }
+
+  function beginStartupPhase() {
+    isStartupPhase = true;
+    if (startupLockTimer) clearTimeout(startupLockTimer);
+    clearPendingStartupApplies();
+    startupLockTimer = setTimeout(() => {
+      isStartupPhase = false;
+      startupLockTimer = null;
+    }, 8000);
+  }
+
+  setupNativeInteractionListeners();
+  beginStartupPhase();
+
   let attempts = 0;
-  const initInterval = setInterval(() => {
+  initIntervalId = setInterval(() => {
     attempts++;
     setupPlayerListeners();
     const player = getPlayer();
-    if (player && typeof player.setVolume === 'function') {
+    const hasApi = player && typeof player.setVolume === 'function';
+    const hasVideo = !!getPlayerVideo(player);
+    if (hasApi || hasVideo) {
       applySavedVolumeOnStartup();
-      clearInterval(initInterval);
     }
-    if (attempts > 50) {
-      clearInterval(initInterval);
+    if ((hasApi && hasVideo && attempts > 10) || attempts > 150) {
+      if (initIntervalId != null) {
+        clearInterval(initIntervalId);
+        initIntervalId = null;
+      }
     }
-  }, 100);
+  }, 50);
+
+  const playerBootObserver = new MutationObserver(() => {
+    if (!isStartupPhase) {
+      try { playerBootObserver.disconnect(); } catch (e) {}
+      return;
+    }
+    setupPlayerListeners();
+    if (bootApplyTimer != null) return;
+    bootApplyTimer = setTimeout(() => {
+      bootApplyTimer = null;
+      if (!isStartupPhase) return;
+      const player = getPlayer();
+      if (player && (typeof player.setVolume === 'function' || getPlayerVideo(player))) {
+        applySavedVolumeOnStartup();
+        if (typeof player.setVolume === 'function' && getPlayerVideo(player)) {
+          try { playerBootObserver.disconnect(); } catch (e) {}
+        }
+      }
+    }, 50);
+  });
+  playerBootObserver.observe(document.documentElement, { childList: true, subtree: true });
+  setTimeout(() => {
+    try { playerBootObserver.disconnect(); } catch (e) {}
+  }, 20000);
+
+  function setYouTubePlayerPlaybackRate(rate) {
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return;
+    try {
+      const player = getPlayer();
+      if (player && typeof player.setPlaybackRate === 'function') {
+        player.setPlaybackRate(rate);
+      }
+      const video = getPlayerVideo(player);
+      if (video && Math.abs(video.playbackRate - rate) > 0.01) {
+        video.playbackRate = rate;
+      }
+    } catch (e) {}
+  }
 
   window.addEventListener('yt-vol-sync-player', (e) => {
     if (!e || !e.detail) return;
     const { volume, isMuted } = e.detail;
     if (typeof volume === 'number' && Number.isFinite(volume)) {
+      endStartupPhase();
       setYouTubePlayerVolume(volume, !!isMuted);
     }
   }, { passive: true });
 
+  window.addEventListener('yt-speed-sync-player', (e) => {
+    if (!e || !e.detail) return;
+    const { rate } = e.detail;
+    if (typeof rate === 'number' && Number.isFinite(rate)) {
+      setYouTubePlayerPlaybackRate(rate);
+    }
+  }, { passive: true });
+
   window.addEventListener('yt-navigate-finish', () => {
-    setTimeout(applySavedVolumeOnStartup, 100);
+    beginStartupPhase();
+    setupPlayerListeners();
+    scheduleStartupApply(50);
+    scheduleStartupApply(100);
+    scheduleStartupApply(500);
+    scheduleStartupApply(1500);
   }, { passive: true });
 })();

@@ -1,4 +1,4 @@
-/* YouTube Viewport Volume Drag - Modern Visualizer HUD Styling */
+/* Volume visualizer HUD styles */
 
 :root {
   --yt-vol-accent: #ffffff;
@@ -10,7 +10,6 @@
   --yt-vol-text-muted: rgba(255, 255, 255, 0.6);
 }
 
-/* Outer HUD Container (Anchored above mouse cursor via translate3d) */
 .yt-vol-hud-wrapper {
   position: absolute;
   top: 0;
@@ -28,13 +27,11 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
-/* Active HUD State */
 .yt-vol-hud-wrapper.yt-vol-visible {
   opacity: 1;
   visibility: visible;
 }
 
-/* Glassmorphism Card Pill */
 .yt-vol-hud-card {
   display: flex;
   align-items: center;
@@ -54,7 +51,6 @@
   box-sizing: border-box;
 }
 
-/* Speaker Icon Section */
 .yt-vol-icon-box {
   display: flex;
   align-items: center;
@@ -77,7 +73,6 @@
   transition: transform 0.15s ease;
 }
 
-/* Main Content Area */
 .yt-vol-body {
   display: flex;
   flex-direction: column;
@@ -85,7 +80,6 @@
   flex: 1;
 }
 
-/* Top Row: Waveform Equalizer + Header */
 .yt-vol-header {
   display: flex;
   align-items: center;
@@ -93,7 +87,6 @@
   gap: 12px;
 }
 
-/* Waveform Visualizer Bars */
 .yt-vol-waveform {
   display: flex;
   align-items: flex-end;
@@ -111,7 +104,6 @@
   max-height: 18px;
 }
 
-/* Numerical Volume Percentage Badge */
 .yt-vol-badge {
   font-size: 15px;
   font-weight: 700;
@@ -126,7 +118,6 @@
   text-shadow: 0 0 8px rgba(255, 85, 85, 0.4);
 }
 
-/* Slider Track */
 .yt-vol-slider-wrap {
   position: relative;
   width: 100%;
@@ -136,7 +127,6 @@
   overflow: visible;
 }
 
-/* Slider Active Fill */
 .yt-vol-slider-fill {
   position: absolute;
   top: 0;
@@ -148,7 +138,6 @@
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
 }
 
-/* Slider Thumb Dot */
 .yt-vol-slider-thumb {
   position: absolute;
   top: 50%;
@@ -161,7 +150,6 @@
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0,0,0,0.5);
 }
 
-/* Minimal Pill Style Variation */
 .yt-vol-style-minimal .yt-vol-waveform {
   display: none;
 }
@@ -177,7 +165,19 @@
   gap: 6px;
 }
 
-/* Dragging active helper indicator */
+/* Block native HTML5 drag of the video/poster before the player is ready. */
+#movie_player video,
+.html5-video-player video,
+ytd-player video,
+.html5-main-video,
+.ytp-cued-thumbnail-overlay,
+.ytp-cued-thumbnail-overlay-image,
+.ytp-offline-slate {
+  -webkit-user-drag: none !important;
+  user-drag: none !important;
+}
+
+/* Dragging active state */
 .yt-vol-dragging-active {
   cursor: ew-resize !important;
 }
@@ -186,7 +186,6 @@
   touch-action: none;
 }
 
-/* Live video + moving backdrop-filter is expensive; keep the pill look without re-blurring. */
 .html5-video-player.yt-vol-dragging-active .yt-vol-hud-card {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;

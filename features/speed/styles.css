@@ -1,0 +1,103 @@
+/* YouTube 2x Speed Lock Styles */
+
+/* Subtle glow on hover without altering position, size, or transform */
+.ytp-speedmaster-overlay.yt-speed-hovered,
+.ytp-speedmaster-label.yt-speed-hovered,
+.yt-speed-pill-highlight {
+  box-shadow: 0 0 14px rgba(255, 0, 51, 0.85) !important;
+  outline: 2px solid rgba(255, 0, 51, 0.85) !important;
+  border-radius: 16px !important;
+  transition: box-shadow 0.15s ease, outline 0.15s ease !important;
+}
+
+/* Hide YouTube native vertical scrubber line during 2x hold */
+.ytp-scrubber-line,
+.ytp-speedmaster-scrub-line,
+.ytp-speedmaster-line,
+.ytp-speedmaster-indicator,
+.ytp-speedmaster-active .ytp-scrubber-line,
+.ytp-speedmaster-active .ytp-fine-scrubbing,
+.ytp-speedmaster-active .ytp-fine-scrubbing-container,
+[class*="speedmaster-line"],
+[class*="speedmaster-scrub"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Hover Lock Hint Pill */
+.yt-speed-lock-hint {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  background: rgba(15, 15, 15, 0.92);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f1f1f1;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.yt-speed-lock-hint.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.yt-speed-lock-hint svg {
+  width: 12px;
+  height: 12px;
+  fill: #ff0033;
+}
+
+/* Speed Feedback Toast */
+.yt-speed-toast {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px) scale(0.95);
+  background: rgba(18, 18, 18, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 0, 51, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 0, 51, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  z-index: 2147483647;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: opacity 0.2s cubic-bezier(0.2, 0, 0, 1), transform 0.2s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.yt-speed-toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0) scale(1);
+}
+
+.yt-speed-toast-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff0033;
+}

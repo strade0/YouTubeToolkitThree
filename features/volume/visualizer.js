@@ -1,7 +1,4 @@
-/**
- * YouTube Viewport Volume Drag - Modern Visualizer HUD Component
- * Highly optimized for 60fps+ rendering, zero lag, and instant close support.
- */
+// Volume visualizer HUD component.
 
 class VolumeVisualizerHUD {
   constructor() {
@@ -15,7 +12,6 @@ class VolumeVisualizerHUD {
     this.numBars = 6;
     this.isMounted = false;
 
-    // Cache to prevent redundant DOM updates
     this.lastSpeakerState = null;
     this.lastPercent = -1;
     this.lastMuted = null;
@@ -76,26 +72,21 @@ class VolumeVisualizerHUD {
       return;
     }
 
-    // Create wrapper element
     const wrapper = document.createElement('div');
     wrapper.className = `yt-vol-hud-wrapper ${this.currentStyle === 'minimal' ? 'yt-vol-style-minimal' : ''}`;
     wrapper.setAttribute('aria-hidden', 'true');
 
-    // Create card container
     const card = document.createElement('div');
     card.className = 'yt-vol-hud-card';
 
-    // Icon container
     const iconBox = document.createElement('div');
     iconBox.className = 'yt-vol-icon-box';
     iconBox.innerHTML = this.getSpeakerSvg('high');
     this.lastSpeakerState = 'high';
 
-    // Body
     const body = document.createElement('div');
     body.className = 'yt-vol-body';
 
-    // Header (waveform & percentage badge)
     const header = document.createElement('div');
     header.className = 'yt-vol-header';
 
@@ -118,7 +109,6 @@ class VolumeVisualizerHUD {
     header.appendChild(waveform);
     header.appendChild(badge);
 
-    // Slider wrap & fill
     const sliderWrap = document.createElement('div');
     sliderWrap.className = 'yt-vol-slider-wrap';
 
@@ -244,19 +234,16 @@ class VolumeVisualizerHUD {
       return;
     }
 
-    // 1. Update Slider Fill
     if (this.fill) {
       this.fill.style.width = `${effectiveMuted ? 0 : percent}%`;
     }
 
-    // 2. Update Icon (only when state changes)
     const speakerState = this.getSpeakerState(clampedVol, effectiveMuted);
     if (this.iconBox && speakerState !== this.lastSpeakerState) {
       this.lastSpeakerState = speakerState;
       this.iconBox.innerHTML = this.getSpeakerSvg(speakerState);
     }
 
-    // 3. Update Badge Text
     if (this.badge) {
       this.lastPercent = percent;
       this.lastMuted = effectiveMuted;
@@ -272,7 +259,6 @@ class VolumeVisualizerHUD {
       this.lastMuted = effectiveMuted;
     }
 
-    // 4. Update Waveform Equalizer Bars
     if (this.waveBars && this.waveBars.length > 0) {
       for (let i = 0; i < this.waveBars.length; i++) {
         const bar = this.waveBars[i];
@@ -328,5 +314,4 @@ class VolumeVisualizerHUD {
   }
 }
 
-// Attach to window
 window.VolumeVisualizerHUD = VolumeVisualizerHUD;

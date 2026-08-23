@@ -1,7 +1,4 @@
-/**
- * YouTube Layout Width Trimmer - Content Script
- * Manages real-time layout width resizing, styles injection, floating HUD, and hotkeys.
- */
+// Layout width trimmer content script.
 
 (function () {
   'use strict';
@@ -9,7 +6,6 @@
   const STORAGE_PREFIX = 'trimmer.';
   const MASTER_KEY = 'toolkit.masterEnabled';
 
-  // Default configuration
   const DEFAULT_CONFIG = {
     enabled: true,
     maxWidth: 1440,
@@ -17,7 +13,7 @@
     align: 'center',
     allPages: false,
     trimTheater: false,
-    showHud: true,
+    showHud: false,
     enableHotkeys: true
   };
 
@@ -55,9 +51,6 @@
     currentConfig = next;
   }
 
-  /**
-   * Safe storage getter with fallback
-   */
   function loadConfig(callback) {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
       const defaults = { [MASTER_KEY]: true, ...prefixUpdates(DEFAULT_CONFIG) };
@@ -70,9 +63,6 @@
     }
   }
 
-  /**
-   * Safe storage setter
-   */
   function saveConfig(updates, callback) {
     currentConfig = { ...currentConfig, ...updates };
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
@@ -84,9 +74,6 @@
     }
   }
 
-  /**
-   * Apply settings to the DOM in real-time
-   */
   function applyStyles(config) {
     const root = document.documentElement;
     if (!root) return;
@@ -102,16 +89,10 @@
     root.setAttribute('data-yt-trimmer-all-pages', config.allPages ? 'true' : 'false');
     root.setAttribute('data-yt-trimmer-theater', config.trimTheater ? 'true' : 'false');
 
-    // Trigger YouTube internal resize recalculation smoothly
     triggerYouTubeResize();
-
-    // Update HUD if present
     updateHudUi();
   }
 
-  /**
-   * Trigger YouTube resize events so the player adjusts its size
-   */
   function triggerYouTubeResize() {
     clearTimeout(resizeTimeout);
     resizeTimeout = setTimeout(() => {
@@ -119,20 +100,29 @@
     }, 50);
   }
 
-  /**
-   * Theater / fullscreen leave stale inline player + chrome widths.
-   * Fire a few delayed resizes so YouTube recalculates after its layout transition.
-   */
+  function isWatchPage() {
+    return window.location.pathname.startsWith('/watch') || !!document.querySelector('ytd-watch-flexy, ytd-watch-grid');
+  }
+
   function relayoutPlayer() {
+    if (!isWatchPage()) return;
     triggerYouTubeResize();
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-    setTimeout(() => window.dispatchEvent(new Event('resize')), 500);
+    setTimeout(() => { if (isWatchPage()) window.dispatchEvent(new Event('resize')); }, 200);
+    setTimeout(() => { if (isWatchPage()) window.dispatchEvent(new Event('resize')); }, 500);
   }
 
   let watchObserver = null;
   let watchObservedEl = null;
 
   function observeWatchLayout() {
+    if (!isWatchPage()) {
+      if (watchObserver) {
+        watchObserver.disconnect();
+        watchObserver = null;
+        watchObservedEl = null;
+      }
+      return;
+    }
     const watch = document.querySelector('ytd-watch-flexy, ytd-watch-grid');
     if (!watch || watch === watchObservedEl) return;
 
@@ -152,9 +142,6 @@
     });
   }
 
-  /**
-   * Show a sleek toast on in-page adjustments
-   */
   function showToast(message) {
     if (!toastElement) {
       toastElement = document.createElement('div');
@@ -173,9 +160,6 @@
     }, 1600);
   }
 
-  /**
-   * Create and mount the floating HUD resizer
-   */
   function setupHud() {
     if (hudElement || !document.body) return;
 
@@ -203,7 +187,6 @@
     const plusBtn = hudElement.querySelector('#yt-trimmer-hud-plus');
     const toggleBtn = hudElement.querySelector('#yt-trimmer-hud-toggle');
 
-    // Real-time dragging feedback
     slider.addEventListener('input', (e) => {
       const newWidth = parseInt(e.target.value, 10);
       currentConfig.maxWidth = newWidth;
@@ -212,7 +195,6 @@
       triggerYouTubeResize();
     });
 
-    // Save on release
     slider.addEventListener('change', (e) => {
       const newWidth = parseInt(e.target.value, 10);
       saveConfig({ maxWidth: newWidth });
@@ -235,9 +217,6 @@
     updateHudUi();
   }
 
-  /**
-   * Update HUD controls to match current state
-   */
   function updateHudUi() {
     if (!hudElement) return;
 
@@ -254,9 +233,6 @@
     if (valText) valText.textContent = `${currentConfig.maxWidth}px`;
   }
 
-  /**
-   * Update width helper
-   */
   function updateWidth(newWidth, notify = false) {
     currentConfig.maxWidth = newWidth;
     applyStyles(currentConfig);
@@ -266,14 +242,10 @@
     }
   }
 
-  /**
-   * Setup keyboard shortcuts
-   */
   function setupHotkeys() {
     window.addEventListener('keydown', (e) => {
       if (!masterEnabled || !currentConfig.enableHotkeys) return;
 
-      // Don't trigger when typing in search bars or inputs
       const target = e.target;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
         return;
@@ -298,9 +270,6 @@
     });
   }
 
-  /**
-   * Setup message listeners for extension popup
-   */
   function setupMessageListeners() {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
@@ -324,7 +293,6 @@
       return true;
     });
 
-    // Listen for storage changes across tabs
     if (chrome.storage && chrome.storage.onChanged) {
       chrome.storage.onChanged.addListener((changes, area) => {
         if (area !== 'sync') return;
@@ -347,22 +315,62 @@
     }
   }
 
-  // Initialize immediately
   loadConfig((config) => {
     applyStyles(config);
   });
 
-  function setupLayoutWatchers() {
-    observeWatchLayout();
-    window.addEventListener('yt-navigate-finish', () => {
-      observeWatchLayout();
-      relayoutPlayer();
-    });
-    window.addEventListener('yt-set-theater-mode-enabled', relayoutPlayer);
-    document.addEventListener('fullscreenchange', relayoutPlayer);
+  function updateVideoAspectRatio() {
+    if (!isWatchPage()) return;
+    const watch = document.querySelector('ytd-watch-flexy, ytd-watch-grid');
+    if (!watch) return;
+    const video = watch.querySelector('video');
+    if (video && !video.closest('ytd-inline-preview-renderer, #inline-preview-player, .inline-preview-player') && video.videoWidth > 0 && video.videoHeight > 0) {
+      const ratio = video.videoWidth / video.videoHeight;
+      document.documentElement.style.setProperty('--yt-trimmer-video-ratio', String(ratio.toFixed(4)));
+    }
   }
 
-  // When DOM is interactive
+  function setupLayoutWatchers() {
+    observeWatchLayout();
+    if (isWatchPage()) {
+      updateVideoAspectRatio();
+    }
+
+    window.addEventListener('yt-navigate-finish', () => {
+      observeWatchLayout();
+      if (isWatchPage()) {
+        updateVideoAspectRatio();
+        relayoutPlayer();
+      }
+    });
+    window.addEventListener('yt-set-theater-mode-enabled', () => {
+      if (isWatchPage()) {
+        updateVideoAspectRatio();
+        relayoutPlayer();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      if (isWatchPage()) {
+        updateVideoAspectRatio();
+        relayoutPlayer();
+      }
+    });
+
+    document.addEventListener('loadedmetadata', (e) => {
+      if (!isWatchPage()) return;
+      if (e.target && e.target.tagName === 'VIDEO' && !e.target.closest('ytd-inline-preview-renderer, #inline-preview-player, .inline-preview-player')) {
+        updateVideoAspectRatio();
+      }
+    }, true);
+
+    document.addEventListener('playing', (e) => {
+      if (!isWatchPage()) return;
+      if (e.target && e.target.tagName === 'VIDEO' && !e.target.closest('ytd-inline-preview-renderer, #inline-preview-player, .inline-preview-player')) {
+        updateVideoAspectRatio();
+      }
+    }, true);
+  }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       setupHud();
@@ -376,5 +384,4 @@
     setupMessageListeners();
     setupLayoutWatchers();
   }
-
 })();
