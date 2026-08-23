@@ -23,6 +23,12 @@
   let pendingStartupApplyTimers = [];
   let bootApplyTimer = null;
   let initIntervalId = null;
+  let volGesture = {
+    active: false,
+    suppressPlay: false,
+    savedPlaybackRate: 1
+  };
+  const hookedPlayers = new WeakSet();
 
   window.addEventListener('storage', (e) => {
     if (e.key && VOLUME_STORAGE_KEYS.has(e.key)) {
@@ -88,6 +94,14 @@
       }
     } catch (e) {}
     return null;
+  }
+
+  function onWatchVideoPlay() {
+    if (!volGesture.suppressPlay) return;
+    pauseWatchPlayerIfNeeded();
+    if (volGesture.active) {
+      setYouTubePlayerPlaybackRate(volGesture.savedPlaybackRate);
+    }
   }
 
   function onPlayerVolumeChange() {
@@ -167,15 +181,20 @@
           player.addEventListener('onVolumeChange', onPlayerVolumeChange);
         } catch (e) {}
       }
+      hookPlayerPlaybackGuards(player);
     }
 
     const video = player.querySelector ? player.querySelector('video') : null;
     if (video && attachedVideo !== video) {
       if (attachedVideo) {
         attachedVideo.removeEventListener('volumechange', onPlayerVolumeChange);
+        attachedVideo.removeEventListener('play', onWatchVideoPlay, true);
+        attachedVideo.removeEventListener('playing', onWatchVideoPlay, true);
       }
       attachedVideo = video;
       video.addEventListener('volumechange', onPlayerVolumeChange, { passive: true });
+      video.addEventListener('play', onWatchVideoPlay, true);
+      video.addEventListener('playing', onWatchVideoPlay, true);
       video.addEventListener('loadedmetadata', () => {
         applySavedVolumeOnStartup();
       }, { passive: true });
@@ -342,6 +361,76 @@
       }
     } catch (e) {}
   }
+
+  function isWatchPlayerVideo(el) {
+    if (!el) return false;
+    const player = getPlayer();
+    return el === attachedVideo || el === getPlayerVideo(player);
+  }
+
+  function pauseWatchPlayerIfNeeded() {
+    if (!volGesture.suppressPlay) return;
+    try {
+      const player = getPlayer();
+      if (player && typeof player.pauseVideo === 'function') {
+        player.pauseVideo();
+      }
+      const video = getPlayerVideo(player) || attachedVideo;
+      if (video && !video.paused) {
+        video.pause();
+      }
+    } catch (e) {}
+  }
+
+  function applyVolumeGestureGuards() {
+    if (volGesture.active) {
+      setYouTubePlayerPlaybackRate(volGesture.savedPlaybackRate);
+    }
+    pauseWatchPlayerIfNeeded();
+  }
+
+  function hookPlayerPlaybackGuards(player) {
+    if (!player || hookedPlayers.has(player)) return;
+    hookedPlayers.add(player);
+
+    if (typeof player.playVideo === 'function') {
+      const origPlayVideo = player.playVideo.bind(player);
+      player.playVideo = function (...args) {
+        if (volGesture.suppressPlay) return;
+        return origPlayVideo(...args);
+      };
+    }
+
+    if (typeof player.setPlaybackRate === 'function') {
+      const origSetRate = player.setPlaybackRate.bind(player);
+      player.setPlaybackRate = function (rate, ...rest) {
+        if (volGesture.active && Number.isFinite(volGesture.savedPlaybackRate)) {
+          return origSetRate(volGesture.savedPlaybackRate, ...rest);
+        }
+        return origSetRate(rate, ...rest);
+      };
+    }
+  }
+
+  const origMediaPlay = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function (...args) {
+    if (volGesture.suppressPlay && isWatchPlayerVideo(this)) {
+      return Promise.resolve();
+    }
+    return origMediaPlay.apply(this, args);
+  };
+
+  window.addEventListener('yt-vol-gesture-state', (e) => {
+    if (!e || !e.detail) return;
+    const { active, suppressPlay, savedPlaybackRate } = e.detail;
+    volGesture.active = !!active;
+    volGesture.suppressPlay = !!suppressPlay;
+    if (typeof savedPlaybackRate === 'number' && Number.isFinite(savedPlaybackRate) && savedPlaybackRate > 0) {
+      volGesture.savedPlaybackRate = savedPlaybackRate;
+    }
+    hookPlayerPlaybackGuards(getPlayer());
+    applyVolumeGestureGuards();
+  }, { passive: true });
 
   window.addEventListener('yt-vol-sync-player', (e) => {
     if (!e || !e.detail) return;

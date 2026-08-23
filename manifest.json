@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "YouTube Toolkit",
-  "version": "1.0.7",
-  "description": "Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — YouTube watch-page tools in one extension, each with its own toggle.",
+  "version": "1.0.8",
+  "description": "Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — essential YouTube tools, each with its own toggle.",
   "permissions": [
     "storage"
   ],

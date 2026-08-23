@@ -1,11 +1,50 @@
 /* YouTube 2x Speed Lock Styles */
 
+/* Native 2x speedmaster pill: white accent instead of YouTube red */
+.ytp-speedmaster-overlay,
+.ytp-speedmaster-overlay *,
+.ytp-speedmaster-label,
+.ytp-speedmaster-pill,
+[class*="speedmaster-label"],
+[class*="speedmaster-pill"] {
+  --yt-spec-static-brand-red: #ffffff;
+  --yt-spec-brand-button-background: #ffffff;
+  --yt-spec-static-overlay-text-primary: #ffffff;
+  --yt-spec-text-primary: #ffffff;
+}
+
+.ytp-speedmaster-overlay svg,
+.ytp-speedmaster-overlay path,
+.ytp-speedmaster-label svg,
+.ytp-speedmaster-label path,
+.ytp-speedmaster-pill svg,
+.ytp-speedmaster-pill path,
+[class*="speedmaster-overlay"] svg,
+[class*="speedmaster-overlay"] path,
+[class*="speedmaster-label"] svg,
+[class*="speedmaster-label"] path,
+[class*="speedmaster-pill"] svg,
+[class*="speedmaster-pill"] path {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+.ytp-speedmaster-label,
+.ytp-speedmaster-pill,
+.ytp-speedmaster-overlay-content,
+[class*="speedmaster-label"],
+[class*="speedmaster-pill"] {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.85) !important;
+}
+
 /* Subtle glow on hover without altering position, size, or transform */
 .ytp-speedmaster-overlay.yt-speed-hovered,
 .ytp-speedmaster-label.yt-speed-hovered,
 .yt-speed-pill-highlight {
-  box-shadow: 0 0 14px rgba(255, 0, 51, 0.85) !important;
-  outline: 2px solid rgba(255, 0, 51, 0.85) !important;
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.85) !important;
+  outline: 2px solid rgba(255, 255, 255, 0.85) !important;
   border-radius: 16px !important;
   transition: box-shadow 0.15s ease, outline 0.15s ease !important;
 }
@@ -61,7 +100,7 @@
 .yt-speed-lock-hint svg {
   width: 12px;
   height: 12px;
-  fill: #ff0033;
+  fill: #ffffff;
 }
 
 /* Speed Feedback Toast */
@@ -79,8 +118,8 @@
   letter-spacing: 0.3px;
   padding: 8px 16px;
   border-radius: 20px;
-  border: 1px solid rgba(255, 0, 51, 0.4);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 0, 51, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 15px rgba(255, 255, 255, 0.3);
   pointer-events: none;
   opacity: 0;
   z-index: 2147483647;
@@ -99,5 +138,5 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #ff0033;
+  color: #ffffff;
 }

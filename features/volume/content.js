@@ -73,6 +73,10 @@
   let hudEnsureTimer = null;
   let userVolumeHoldUntil = 0;
   let pendingEarlyHold = null;
+  let wasPausedAtGestureStart = false;
+  let playGuardVideo = null;
+  let pauseAssertTimers = [];
+  let justDraggedClearTimer = null;
 
   const NATIVE_VOLUME_SELECTOR = '.ytp-volume-control, .ytp-volume-panel, .ytp-volume-slider, .ytp-mute-button, .ytp-volume-area';
 
@@ -372,6 +376,7 @@
     if (!player) {
       if (activeVideo) {
         activeVideo.removeEventListener('ratechange', onRateChange);
+        detachPlayGuards();
         activeVideo = null;
       }
       activePlayer = null;
@@ -385,6 +390,9 @@
       activeVideo = video;
       disableNativeVideoDrag(activeVideo);
       activeVideo.addEventListener('ratechange', onRateChange, { passive: true });
+      if (isPointerDown || isDragging) {
+        attachPlayGuards(activeVideo);
+      }
 
       if (tabDesiredVolume !== null) {
         const intVol = Math.round(tabDesiredVolume * 100);
@@ -420,12 +428,88 @@
     }, delay);
   }
 
-  function cancelYouTubeSpeedmaster() {
-    if (activeVideo && Number.isFinite(savedPlaybackRate)) {
-      if (activeVideo.playbackRate !== savedPlaybackRate) {
-        activeVideo.playbackRate = savedPlaybackRate;
-      }
+  function clearPauseAssertTimers() {
+    for (let i = 0; i < pauseAssertTimers.length; i++) {
+      clearTimeout(pauseAssertTimers[i]);
     }
+    pauseAssertTimers = [];
+  }
+
+  function markVolumeJustDragged() {
+    try {
+      document.documentElement.setAttribute('data-yt-vol-just-dragged', '1');
+    } catch (e) {}
+    if (justDraggedClearTimer) clearTimeout(justDraggedClearTimer);
+    justDraggedClearTimer = setTimeout(() => {
+      justDraggedClearTimer = null;
+      try {
+        document.documentElement.removeAttribute('data-yt-vol-just-dragged');
+      } catch (e) {}
+    }, 300);
+  }
+
+  function restoreSavedPlaybackRate() {
+    if (!Number.isFinite(savedPlaybackRate) || savedPlaybackRate <= 0) return;
+    if (activeVideo) {
+      try {
+        if (Math.abs(activeVideo.playbackRate - savedPlaybackRate) > 0.01) {
+          activeVideo.playbackRate = savedPlaybackRate;
+        }
+      } catch (e) {}
+    }
+    try {
+      window.dispatchEvent(new CustomEvent('yt-speed-sync-player', {
+        detail: { rate: savedPlaybackRate }
+      }));
+    } catch (e) {}
+  }
+
+  function enforcePausedIfNeeded() {
+    if (!wasPausedAtGestureStart || !activeVideo) return;
+    if (!activeVideo.paused) {
+      try {
+        activeVideo.pause();
+      } catch (e) {}
+    }
+  }
+
+  function publishVolumeGestureState(active, suppressPlay) {
+    try {
+      window.dispatchEvent(new CustomEvent('yt-vol-gesture-state', {
+        detail: {
+          active: !!active,
+          suppressPlay: !!suppressPlay,
+          savedPlaybackRate: savedPlaybackRate
+        }
+      }));
+    } catch (e) {}
+  }
+
+  function onGuardedPlay() {
+    if (!isDragging) return;
+    restoreSavedPlaybackRate();
+    enforcePausedIfNeeded();
+    cancelYouTubeSpeedmaster();
+  }
+
+  function detachPlayGuards() {
+    if (!playGuardVideo) return;
+    playGuardVideo.removeEventListener('play', onGuardedPlay);
+    playGuardVideo.removeEventListener('playing', onGuardedPlay);
+    playGuardVideo = null;
+  }
+
+  function attachPlayGuards(video) {
+    if (playGuardVideo === video) return;
+    detachPlayGuards();
+    if (!video) return;
+    playGuardVideo = video;
+    video.addEventListener('play', onGuardedPlay);
+    video.addEventListener('playing', onGuardedPlay);
+  }
+
+  function cancelYouTubeSpeedmaster() {
+    restoreSavedPlaybackRate();
     if (activePlayer) {
       try {
         const cancelEvt = new PointerEvent('pointercancel', {
@@ -442,14 +526,16 @@
       }
       activePlayer.classList.remove('ytp-speedmaster-active');
     }
+    enforcePausedIfNeeded();
   }
 
   function onRateChange() {
     if (isDragging && activeVideo && Number.isFinite(savedPlaybackRate)) {
-      if (activeVideo.playbackRate !== savedPlaybackRate) {
-        activeVideo.playbackRate = savedPlaybackRate;
+      if (Math.abs(activeVideo.playbackRate - savedPlaybackRate) > 0.01) {
+        restoreSavedPlaybackRate();
         cancelYouTubeSpeedmaster();
       }
+      enforcePausedIfNeeded();
     }
   }
 
@@ -711,6 +797,11 @@
       if (hud && cachedPlayerRect && isDragging) {
         hud.update(clamped, isMuted, pendingCursorX, pendingCursorY, cachedPlayerRect);
       }
+
+      if (isDragging) {
+        restoreSavedPlaybackRate();
+        enforcePausedIfNeeded();
+      }
     });
   }
 
@@ -743,7 +834,10 @@
     noteUserVolumeChange();
     setDraggingClass(true);
     pausePlayerObserver();
+    publishVolumeGestureState(true, wasPausedAtGestureStart);
     cancelYouTubeSpeedmaster();
+    restoreSavedPlaybackRate();
+    enforcePausedIfNeeded();
 
     if (captureEl && activePointerId !== null && captureEl.setPointerCapture) {
       try {
@@ -788,6 +882,7 @@
       if (config.dragTrigger === 'right' || (e && e.button === 2)) {
         armContextMenuSuppression();
       }
+      markVolumeJustDragged();
 
       const clamped = toFiniteVolume(pendingVolume, tabDesiredVolume);
       if (clamped !== null) {
@@ -799,6 +894,9 @@
       }
 
       cancelYouTubeSpeedmaster();
+      restoreSavedPlaybackRate();
+      enforcePausedIfNeeded();
+      publishVolumeGestureState(false, wasPausedAtGestureStart);
       releaseNativeSlider();
       setDraggingClass(false);
       resumePlayerObserver();
@@ -806,7 +904,23 @@
       if (hud) {
         hud.hide(650);
       }
+
+      if (wasPausedAtGestureStart) {
+        const reassert = () => {
+          restoreSavedPlaybackRate();
+          enforcePausedIfNeeded();
+        };
+        pauseAssertTimers.push(setTimeout(reassert, 0));
+        pauseAssertTimers.push(setTimeout(reassert, 50));
+        pauseAssertTimers.push(setTimeout(reassert, 160));
+        pauseAssertTimers.push(setTimeout(reassert, 280));
+        pauseAssertTimers.push(setTimeout(() => {
+          reassert();
+          publishVolumeGestureState(false, false);
+        }, 360));
+      }
     } else {
+      publishVolumeGestureState(false, false);
       if (hud) {
         hud.hide(0);
       }
@@ -959,9 +1073,13 @@
     if (video) {
       const rate = video.playbackRate;
       savedPlaybackRate = Number.isFinite(rate) && rate > 0 ? rate : 1.0;
+      wasPausedAtGestureStart = !!video.paused;
+      attachPlayGuards(video);
     } else {
       savedPlaybackRate = 1.0;
+      wasPausedAtGestureStart = false;
     }
+    clearPauseAssertTimers();
 
     cachedPlayerRect = player.getBoundingClientRect();
     if (cachedPlayerRect.width < 32 && e.target && e.target.getBoundingClientRect) {
@@ -1055,14 +1173,9 @@
     const elapsed = performance.now() - pointerDownTime;
 
     if (!isDragging) {
-      // Avoid triggering drag during YouTube 2x speed long-press
-      const speedmasterActive = activePlayer.classList.contains('ytp-speedmaster-active');
-      const speedmasterJustStarted = activeVideo &&
-        Number.isFinite(savedPlaybackRate) &&
-        activeVideo.playbackRate > savedPlaybackRate + 0.05 &&
-        speedmasterActive;
-
-      if ((elapsed > FAST_FORWARD_THRESHOLD_MS && distance <= DRAG_THRESHOLD_PX) || speedmasterJustStarted) {
+      // Still-hold is YouTube 2x. Horizontal movement is volume, even if
+      // speedmaster already started (common on paused videos).
+      if (elapsed > FAST_FORWARD_THRESHOLD_MS && distance <= DRAG_THRESHOLD_PX) {
         fastForwardLocked = true;
         return;
       }
@@ -1078,10 +1191,11 @@
       }
     }
 
-    if (activeVideo && Number.isFinite(savedPlaybackRate) && activeVideo.playbackRate !== savedPlaybackRate) {
-      activeVideo.playbackRate = savedPlaybackRate;
+    if (activeVideo && Number.isFinite(savedPlaybackRate) && Math.abs(activeVideo.playbackRate - savedPlaybackRate) > 0.01) {
+      restoreSavedPlaybackRate();
       cancelYouTubeSpeedmaster();
     }
+    enforcePausedIfNeeded();
 
     const volumeDelta = deltaX / cachedSpanWidth;
     const rawVolume = initialVolume + volumeDelta;

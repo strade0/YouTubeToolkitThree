@@ -415,7 +415,10 @@
     hideHint();
     syncPillLabel(false);
 
-    if (wasHovering && isSpeedEnabled()) {
+    const volumeDragConsumed = document.body.classList.contains('yt-vol-dragging-active') ||
+      document.documentElement.hasAttribute('data-yt-vol-just-dragged');
+
+    if (wasHovering && isSpeedEnabled() && !volumeDragConsumed) {
       armClickSuppression();
 
       if (basePlaybackRate >= 1.95) {

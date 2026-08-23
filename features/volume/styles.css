@@ -196,3 +196,9 @@ ytd-player video,
   user-select: none !important;
   -webkit-user-select: none !important;
 }
+
+.html5-video-player.yt-vol-dragging-active .ytp-speedmaster-overlay,
+.html5-video-player.yt-vol-dragging-active [class*="speedmaster-overlay"] {
+  display: none !important;
+  visibility: hidden !important;
+}
