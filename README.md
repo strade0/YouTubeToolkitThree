@@ -6,7 +6,7 @@ Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — YouTube tool
 
 ## ✨ Features
 
-- **Volume Drag**: Drag horizontally across the video to adjust volume, with a floating HUD visualizer above your cursor.
+- **Volume Drag**: Drag horizontally across the video to adjust volume, with a floating HUD visualizer. The pill follows the cursor by default; turn **Follow cursor** off in the popup to park it at the click position instead.
 - **2x Speed Lock**: Hold left-click to use YouTube's built-in 2x speed, then hover over the top 2x badge and release to lock 2x speed (or reset back to 1x). Fully synchronized with YouTube's bottom-right playback speed menu.
 - **Layout Trimmer**: Narrow YouTube’s extra-wide layout, resize the suggested-videos sidebar, and align the page (left / center / right).
 - **SkipIt**: After a single skip keypress (Right Arrow or L), automatically click YouTube’s native **Jump ahead** button.

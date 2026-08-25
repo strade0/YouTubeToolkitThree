@@ -11,7 +11,8 @@ document.addEventListener('DOMContentLoaded', () => {
     enabled: true,
     sensitivity: 60,
     dragTrigger: 'left',
-    hudStyle: 'wave'
+    hudStyle: 'wave',
+    followCursor: true
   };
 
   const TRIMMER_DEFAULTS = {
@@ -135,6 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const sensitivityValue = document.getElementById('sensitivity-value');
   const triggerSelect = document.getElementById('trigger-select');
   const styleSelect = document.getElementById('style-select');
+  const followCursorToggle = document.getElementById('volume-follow-cursor');
   const previewWaves = document.getElementById('preview-waves');
 
   function renderVolume() {
@@ -143,6 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
     sensitivityValue.textContent = `${volumeConfig.sensitivity}%`;
     triggerSelect.value = volumeConfig.dragTrigger;
     styleSelect.value = volumeConfig.hudStyle;
+    if (followCursorToggle) {
+      followCursorToggle.checked = volumeConfig.followCursor !== false;
+    }
     if (previewWaves) {
       previewWaves.style.display = volumeConfig.hudStyle === 'minimal' ? 'none' : 'flex';
     }
@@ -167,6 +172,11 @@ document.addEventListener('DOMContentLoaded', () => {
     saveVolume('hudStyle', e.target.value);
     renderVolume();
   });
+  if (followCursorToggle) {
+    followCursorToggle.addEventListener('change', (e) => {
+      saveVolume('followCursor', e.target.checked);
+    });
+  }
 
   // ----- Trimmer -----
   const trimmerEnabled = document.getElementById('trimmer-enabled');

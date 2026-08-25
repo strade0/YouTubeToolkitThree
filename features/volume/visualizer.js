@@ -97,7 +97,7 @@ class VolumeVisualizerHUD {
     for (let i = 0; i < this.numBars; i++) {
       const bar = document.createElement('div');
       bar.className = 'yt-vol-bar';
-      bar.dataset.weight = baseWeights[i % baseWeights.length];
+      bar._weight = baseWeights[i % baseWeights.length];
       waveform.appendChild(bar);
       this.waveBars.push(bar);
     }
@@ -171,8 +171,12 @@ class VolumeVisualizerHUD {
     }
     if (this.wrapper && !this.wrapper.classList.contains('yt-vol-visible')) {
       this.wrapper.classList.add('yt-vol-visible');
-      this.measure();
     }
+  }
+
+  isShowing() {
+    if (this.hideTimeout) return true;
+    return !!(this.wrapper && this.wrapper.classList.contains('yt-vol-visible'));
   }
 
   applyTransform(x, y, below) {
@@ -220,11 +224,11 @@ class VolumeVisualizerHUD {
   }
 
   update(volumeFraction, isMuted, cursorX, cursorY, playerRect) {
-    this.show();
-
     if (typeof cursorX === 'number' && typeof cursorY === 'number' && playerRect) {
       this.setPosition(cursorX, cursorY, playerRect);
     }
+
+    this.show();
 
     const clampedVol = Math.max(0, Math.min(1, volumeFraction));
     const percent = Math.round(clampedVol * 100);
@@ -263,21 +267,19 @@ class VolumeVisualizerHUD {
       for (let i = 0; i < this.waveBars.length; i++) {
         const bar = this.waveBars[i];
         if (effectiveMuted) {
-          bar.style.height = '3px';
+          bar.style.transform = 'scaleY(0.166)';
           bar.style.opacity = '0.3';
         } else {
-          const weight = parseFloat(bar.dataset.weight || '1.0');
-          const baseHeight = 3;
-          const maxHeight = 18;
-          const targetHeight = Math.max(3, Math.round(baseHeight + (maxHeight - baseHeight) * clampedVol * weight));
-          bar.style.height = `${targetHeight}px`;
+          const weight = bar._weight !== undefined ? bar._weight : 1.0;
+          const scale = Math.max(0.166, Math.min(1, 0.166 + (1 - 0.166) * clampedVol * weight));
+          bar.style.transform = `scaleY(${scale.toFixed(3)})`;
           bar.style.opacity = `${(0.4 + 0.6 * clampedVol).toFixed(2)}`;
         }
       }
     }
   }
 
-  hide(delay = 600) {
+  hide(delay = 450) {
     if (this.hideTimeout) {
       clearTimeout(this.hideTimeout);
       this.hideTimeout = null;
@@ -285,10 +287,6 @@ class VolumeVisualizerHUD {
     const hideNow = () => {
       if (this.wrapper) {
         this.wrapper.classList.remove('yt-vol-visible', 'yt-vol-hud-below');
-        this.wrapper.style.transform = '';
-        this.lastX = -1;
-        this.lastY = -1;
-        this.lastBelow = null;
       }
     };
 

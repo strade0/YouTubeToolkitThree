@@ -3,8 +3,8 @@
 :root {
   --yt-vol-accent: #ffffff;
   --yt-vol-accent-glow: rgba(255, 255, 255, 0.4);
-  --yt-vol-bg: rgba(15, 15, 20, 0.82);
-  --yt-vol-border: rgba(255, 255, 255, 0.15);
+  --yt-vol-bg: rgba(18, 18, 24, 0.94);
+  --yt-vol-border: rgba(255, 255, 255, 0.16);
   --yt-vol-track-bg: rgba(255, 255, 255, 0.18);
   --yt-vol-text: #ffffff;
   --yt-vol-text-muted: rgba(255, 255, 255, 0.6);
@@ -14,14 +14,13 @@
   position: absolute;
   top: 0;
   left: 0;
-  transform: translate3d(-9999px, -9999px, 0);
   z-index: 2147483647 !important;
   pointer-events: none;
   user-select: none;
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
-              visibility 0.2s ease;
+  transition: opacity 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.15s ease;
   will-change: transform, opacity;
   contain: layout style;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -38,12 +37,10 @@
   gap: 16px;
   padding: 14px 22px;
   background: var(--yt-vol-bg);
-  backdrop-filter: blur(24px) saturate(180%);
-  -webkit-backdrop-filter: blur(24px) saturate(180%);
   border: 1px solid var(--yt-vol-border);
   border-radius: 9999px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45),
-              0 2px 8px rgba(0, 0, 0, 0.3),
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5),
+              0 2px 8px rgba(0, 0, 0, 0.35),
               inset 0 1px 1px rgba(255, 255, 255, 0.2);
   color: var(--yt-vol-text);
   min-width: 280px;
@@ -97,11 +94,13 @@
 
 .yt-vol-bar {
   width: 3.5px;
+  height: 18px;
   background: var(--yt-vol-accent);
   border-radius: 4px;
   box-shadow: 0 0 8px var(--yt-vol-accent-glow);
-  min-height: 3px;
-  max-height: 18px;
+  transform-origin: bottom center;
+  transform: scaleY(0.166);
+  will-change: transform;
 }
 
 .yt-vol-badge {
@@ -133,6 +132,7 @@
   left: 0;
   height: 100%;
   width: 0%;
+  overflow: visible;
   background: linear-gradient(90deg, rgba(255, 255, 255, 0.85), #ffffff);
   border-radius: 9999px;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
@@ -140,11 +140,17 @@
 
 .yt-vol-slider-thumb {
   position: absolute;
-  top: 50%;
+  top: -2px;
   right: -5px;
-  transform: translateY(-50%);
   width: 10px;
   height: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: block;
+  box-sizing: border-box;
+  line-height: 0;
+  font-size: 0;
   background: #ffffff;
   border-radius: 50%;
   box-shadow: 0 0 10px rgba(255, 255, 255, 0.9), 0 2px 4px rgba(0,0,0,0.5);
@@ -184,12 +190,6 @@ ytd-player video,
 
 .html5-video-player.yt-vol-dragging-active {
   touch-action: none;
-}
-
-.html5-video-player.yt-vol-dragging-active .yt-vol-hud-card {
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  background: rgba(15, 15, 20, 0.94);
 }
 
 .yt-vol-dragging-active * {

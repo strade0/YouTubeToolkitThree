@@ -41,7 +41,9 @@
 
 /* Subtle glow on hover without altering position, size, or transform */
 .ytp-speedmaster-overlay.yt-speed-hovered,
-.ytp-speedmaster-label.yt-speed-hovered,
+.ytp-speedmaster-pill.yt-speed-hovered,
+.ytp-speedmaster-overlay-content.yt-speed-hovered,
+.yt-speed-hovered,
 .yt-speed-pill-highlight {
   box-shadow: 0 0 14px rgba(255, 255, 255, 0.85) !important;
   outline: 2px solid rgba(255, 255, 255, 0.85) !important;

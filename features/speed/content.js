@@ -16,6 +16,25 @@
     return masterEnabled && config.enabled;
   }
 
+  const SPEED_TEXT_RE = /\d+(?:\.\d+)?[xX]/;
+
+  function getTargetSpeed() {
+    const n = Number(config.targetSpeed);
+    return Number.isFinite(n) && n > 0 ? n : 2.0;
+  }
+
+  function formatSpeedLabel(rate) {
+    const n = Number(rate);
+    if (!Number.isFinite(n)) return '1x';
+    if (Math.abs(n - 1) < 0.01) return '1x';
+    if (Math.abs(n - Math.round(n)) < 0.01) return `${Math.round(n)}x`;
+    return `${n}x`;
+  }
+
+  function isNormalRate(rate) {
+    return !Number.isFinite(rate) || Math.abs(rate - 1) < 0.05;
+  }
+
   let isPointerDown = false;
   let isHoveringBadge = false;
   let pointerDownTime = 0;
@@ -31,6 +50,32 @@
   let suppressNextClick = false;
   let suppressClickTimer = null;
   let pillSyncInterval = null;
+
+  const BRIDGE_SOURCE = 'yt-toolkit-volume-bridge';
+
+  function cloneForPage(value) {
+    if (typeof cloneInto === 'function') {
+      try {
+        const target = window.wrappedJSObject || window;
+        return cloneInto(value, target, { cloneFunctions: false });
+      } catch (e) {}
+    }
+    return value;
+  }
+
+  function dispatchToPage(name, detail) {
+    const payload = detail && typeof detail === 'object' ? detail : {};
+    try {
+      window.dispatchEvent(new CustomEvent(name, { detail: cloneForPage(payload) }));
+    } catch (e) {
+      try {
+        window.dispatchEvent(new CustomEvent(name, { detail: payload }));
+      } catch (err) {}
+    }
+    try {
+      window.postMessage({ source: BRIDGE_SOURCE, name: name, detail: payload }, '*');
+    } catch (e) {}
+  }
 
   function loadConfig() {
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
@@ -78,32 +123,20 @@
     return { player: watchPlayer || null, video: video || null };
   }
 
-  function syncPillLabel(shouldShow1x) {
+  function desiredPillLabel() {
+    return isNormalRate(basePlaybackRate)
+      ? formatSpeedLabel(getTargetSpeed())
+      : '1x';
+  }
+
+  function syncPillLabel(label) {
     const p = activePlayer || document.getElementById('movie_player') || document.body;
     if (!p) return;
 
     const overlay = p.querySelector('.ytp-speedmaster-overlay, [class*="speedmaster-overlay"]');
     if (!overlay) return;
 
-    if (shouldShow1x) {
-      const elements = [
-        overlay.querySelector('.ytp-speedmaster-label'),
-        overlay.querySelector('.ytp-speedmaster-pill'),
-        overlay.querySelector('[class*="speedmaster-label"]'),
-        ...overlay.querySelectorAll('*')
-      ].filter(Boolean);
-
-      for (const el of elements) {
-        for (const node of el.childNodes) {
-          if (node.nodeType === Node.TEXT_NODE && node.nodeValue && /2[xX]/.test(node.nodeValue)) {
-            if (node._origValue === undefined) {
-              node._origValue = node.nodeValue;
-            }
-            node.nodeValue = node.nodeValue.replace(/2[xX]/g, '1x');
-          }
-        }
-      }
-    } else {
+    if (!label) {
       const allElements = overlay.querySelectorAll('*');
       for (const el of allElements) {
         for (const node of el.childNodes) {
@@ -113,53 +146,80 @@
           }
         }
       }
+      return;
     }
+
+    const elements = [
+      overlay.querySelector('.ytp-speedmaster-label'),
+      overlay.querySelector('.ytp-speedmaster-pill'),
+      overlay.querySelector('[class*="speedmaster-label"]'),
+      ...overlay.querySelectorAll('*')
+    ].filter(Boolean);
+
+    for (const el of elements) {
+      for (const node of el.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.nodeValue && SPEED_TEXT_RE.test(node.nodeValue)) {
+          if (node._origValue === undefined) {
+            node._origValue = node.nodeValue;
+          }
+          node.nodeValue = node._origValue.replace(SPEED_TEXT_RE, label);
+        }
+      }
+    }
+  }
+
+  function isCompactPillRect(rect) {
+    return rect && rect.width > 36 && rect.width < 280 && rect.height > 16 && rect.height < 80;
   }
 
   function getSpeedmasterPillRect(player) {
     const p = player || activePlayer || document.getElementById('movie_player') || document.body;
     if (!p) return null;
 
-    // 1. Try finding inner pill element
-    const pillSelectors = [
-      '.ytp-speedmaster-label',
+    const overlay = p.querySelector('.ytp-speedmaster-overlay, [class*="speedmaster-overlay"]');
+
+    // Prefer the full capsule (text + icons), not the inner "1.5x" text node.
+    const containerSelectors = [
       '.ytp-speedmaster-pill',
-      '[class*="speedmaster-label"]',
       '[class*="speedmaster-pill"]',
       '.ytp-speedmaster-overlay-content',
       '.ytp-speedmaster-overlay > div'
     ];
 
-    for (const sel of pillSelectors) {
+    for (const sel of containerSelectors) {
       const el = p.querySelector(sel);
-      if (el) {
-        const rect = el.getBoundingClientRect();
-        if (rect.width > 15 && rect.width < 250 && rect.height > 10 && rect.height < 100) {
-          return { el, rect };
-        }
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      if (isCompactPillRect(rect)) {
+        return { el, rect };
       }
     }
 
-    // 2. Search overlay children for text "2x" or "1x"
-    const overlay = p.querySelector('.ytp-speedmaster-overlay, [class*="speedmaster-overlay"]');
     if (overlay) {
+      let best = null;
       const children = overlay.querySelectorAll('*');
       for (const child of children) {
-        if (child.textContent && (/2[xX]/.test(child.textContent) || /1[xX]/.test(child.textContent))) {
-          const rect = child.getBoundingClientRect();
-          if (rect.width > 15 && rect.width < 250 && rect.height > 10 && rect.height < 100) {
-            return { el: child, rect };
+        if (!child.textContent || !SPEED_TEXT_RE.test(child.textContent)) continue;
+        const hasIcon = !!child.querySelector('svg, img');
+        const rect = child.getBoundingClientRect();
+        if (!isCompactPillRect(rect)) continue;
+        if (hasIcon) {
+          if (!best || rect.width > best.rect.width) {
+            best = { el: child, rect };
           }
+        } else if (!best) {
+          best = { el: child, rect };
         }
       }
+      if (best) return best;
 
       const oRect = overlay.getBoundingClientRect();
-      if (oRect.width > 15 && oRect.width < 250) {
+      if (isCompactPillRect(oRect)) {
         return { el: overlay, rect: oRect };
       }
     }
 
-    // 3. Fallback: YouTube's top-center 2x pill region
+    // Fallback: YouTube's top-center 2x pill region
     const isSpeedmasterActive = p.classList.contains('ytp-speedmaster-active') ||
       (overlay && window.getComputedStyle(overlay).display !== 'none');
 
@@ -168,11 +228,11 @@
       const centerX = pRect.left + pRect.width / 2;
       const top = pRect.top + 10;
       const bottom = pRect.top + 60;
-      const left = centerX - 45;
-      const right = centerX + 45;
+      const left = centerX - 60;
+      const right = centerX + 60;
       return {
         el: overlay || p,
-        rect: { left, right, top, bottom, width: 90, height: 50 }
+        rect: { left, right, top, bottom, width: 120, height: 50 }
       };
     }
 
@@ -231,7 +291,7 @@
         <span>Release to reset 1x</span>
       `;
     } else {
-      const speedLabel = config.targetSpeed === 2 ? '2x' : `${config.targetSpeed}x`;
+      const speedLabel = formatSpeedLabel(getTargetSpeed());
       hintEl.innerHTML = `
         <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
         <span>Release to lock ${speedLabel}</span>
@@ -274,9 +334,7 @@
   }
 
   function applyPlaybackRate(targetRate) {
-    window.dispatchEvent(new CustomEvent('yt-speed-sync-player', {
-      detail: { rate: targetRate }
-    }));
+    dispatchToPage('yt-speed-sync-player', { rate: targetRate });
 
     const video = activeVideo || document.querySelector('video');
     if (video) {
@@ -289,9 +347,7 @@
       if (video && Math.abs(video.playbackRate - targetRate) > 0.01) {
         video.playbackRate = targetRate;
       }
-      window.dispatchEvent(new CustomEvent('yt-speed-sync-player', {
-        detail: { rate: targetRate }
-      }));
+      dispatchToPage('yt-speed-sync-player', { rate: targetRate });
     };
 
     requestAnimationFrame(reAssertRate);
@@ -332,33 +388,33 @@
       ? activeVideo.playbackRate
       : 1.0;
 
-    if (basePlaybackRate >= 1.95) {
-      if (pillSyncInterval) clearInterval(pillSyncInterval);
-      pillSyncInterval = setInterval(() => {
-        if (!isPointerDown) {
-          clearInterval(pillSyncInterval);
-          pillSyncInterval = null;
-          return;
-        }
-        syncPillLabel(true);
-      }, 50);
-    }
+    if (pillSyncInterval) clearInterval(pillSyncInterval);
+    pillSyncInterval = setInterval(() => {
+      if (!isPointerDown) {
+        clearInterval(pillSyncInterval);
+        pillSyncInterval = null;
+        return;
+      }
+      syncPillLabel(desiredPillLabel());
+    }, 50);
+    syncPillLabel(desiredPillLabel());
   }
 
   function onPointerMove(e) {
     if (!isPointerDown || !isSpeedEnabled()) return;
+    if (document.body.classList.contains('yt-vol-dragging-active') ||
+        document.documentElement.hasAttribute('data-yt-vol-just-dragged')) {
+      if (pillSyncInterval) {
+        clearInterval(pillSyncInterval);
+        pillSyncInterval = null;
+      }
+      isPointerDown = false;
+      isHoveringBadge = false;
+      return;
+    }
     if (activePointerId !== null && e.pointerId !== undefined && e.pointerId !== activePointerId) return;
 
-    // Stop YouTube's native seek/scrubbing listener from triggering while holding
-    e.stopPropagation();
-    e.stopImmediatePropagation();
-    if (e.cancelable) {
-      e.preventDefault();
-    }
-
-    if (basePlaybackRate >= 1.95) {
-      syncPillLabel(true);
-    }
+    syncPillLabel(desiredPillLabel());
 
     const pillInfo = getSpeedmasterPillRect(activePlayer);
     if (!pillInfo) {
@@ -380,7 +436,7 @@
         if (currentTargetEl) {
           currentTargetEl.classList.add('yt-speed-hovered', 'yt-speed-pill-highlight');
         }
-        showHint(pillInfo.el, basePlaybackRate >= 1.95);
+        showHint(pillInfo.el, !isNormalRate(basePlaybackRate));
       }
     } else {
       if (isHoveringBadge) {
@@ -413,7 +469,7 @@
       currentTargetEl = null;
     }
     hideHint();
-    syncPillLabel(false);
+    syncPillLabel(null);
 
     const volumeDragConsumed = document.body.classList.contains('yt-vol-dragging-active') ||
       document.documentElement.hasAttribute('data-yt-vol-just-dragged');
@@ -421,15 +477,13 @@
     if (wasHovering && isSpeedEnabled() && !volumeDragConsumed) {
       armClickSuppression();
 
-      if (basePlaybackRate >= 1.95) {
-        // Toggle back to 1x
+      if (!isNormalRate(basePlaybackRate)) {
         applyPlaybackRate(1.0);
         showSpeedToast(activePlayer, 'Speed reset to 1x (Normal)', 'reset');
       } else {
-        // Lock to target speed (2x)
-        const target = config.targetSpeed || 2.0;
+        const target = getTargetSpeed();
         applyPlaybackRate(target);
-        showSpeedToast(activePlayer, `⚡ ${target}x Speed Locked`, 'lock');
+        showSpeedToast(activePlayer, `⚡ ${formatSpeedLabel(target)} Speed Locked`, 'lock');
       }
 
       if (e.cancelable) {
@@ -457,13 +511,8 @@
     loadConfig();
 
     window.addEventListener('pointerdown', onPointerDown, true);
-    window.addEventListener('mousedown', onPointerDown, true);
-
-    window.addEventListener('pointermove', onPointerMove, { passive: false, capture: true });
-    window.addEventListener('mousemove', onPointerMove, { passive: false, capture: true });
-
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
     window.addEventListener('pointerup', onPointerUp, true);
-    window.addEventListener('mouseup', onPointerUp, true);
     window.addEventListener('pointercancel', onPointerUp, true);
     window.addEventListener('click', onClickCapture, true);
 
