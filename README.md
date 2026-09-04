@@ -19,17 +19,6 @@ All features run locally on YouTube domains, including music.youtube.com for Vol
 
 See [PRIVACY.md](PRIVACY.md).
 
-## Chrome Web Store
-
-Upload `youtube-toolkit-1.2.0.zip`. Listing text and privacy-form answers are in [STORE_LISTING.md](STORE_LISTING.md).
-
-## Load unpacked (development)
-
-1. Open Chrome and go to `chrome://extensions/`.
-2. Turn on **Developer mode**.
-3. Click **Load unpacked** and select this folder.
-4. Refresh any YouTube tab that was already open.
-
 ## License
 
 MIT License.
