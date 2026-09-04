@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "YouTube Toolkit",
-  "version": "1.0.20",
-  "description": "Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — essential YouTube tools, each with its own toggle.",
+  "short_name": "YT Toolkit",
+  "version": "1.2.0",
+  "description": "Volume, layout, Jump Ahead, headphone pause/play, and speed tools for YouTube and YouTube Music.",
   "permissions": [
     "storage"
   ],
@@ -17,10 +18,15 @@
   "icons": {
     "128": "icon.png"
   },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
   "content_scripts": [
     {
       "matches": ["*://*.youtube.com/*"],
-      "js": ["features/volume/main_bridge.js"],
+      "js": [
+        "features/volume/main_bridge.js"
+      ],
       "world": "MAIN",
       "run_at": "document_start"
     },
@@ -49,6 +55,24 @@
       "css": ["features/speed/styles.css"],
       "js": ["features/speed/content.js"],
       "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["onboarding/overlay-host.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "onboarding/onboarding.html",
+        "onboarding/onboarding.css",
+        "onboarding/onboarding.js",
+        "onboarding/translations.js",
+        "prototypes/assets/headphones-colored.webp",
+        "prototypes/assets/side-tap-hand.webp"
+      ],
+      "matches": ["*://*.youtube.com/*"]
     }
   ]
 }

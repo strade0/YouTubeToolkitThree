@@ -1,36 +1,35 @@
 # YouTube Toolkit
 
-Volume drag, layout trimmer, auto Jump Ahead, and 2x speed lock — YouTube tools in one Chrome extension.
+Volume drag for YouTube and YouTube Music, plus optional YouTube layout, Jump Ahead, and speed tools in one Chrome extension.
 
----
+YouTube Toolkit is **not affiliated with YouTube, Google, or Alphabet**.
 
-## ✨ Features
+## Features
 
-- **Volume Drag**: Drag horizontally across the video to adjust volume, with a floating HUD visualizer. The pill follows the cursor by default; turn **Follow cursor** off in the popup to park it at the click position instead.
-- **2x Speed Lock**: Hold left-click to use YouTube's built-in 2x speed, then hover over the top 2x badge and release to lock 2x speed (or reset back to 1x). Fully synchronized with YouTube's bottom-right playback speed menu.
+- **Volume Drag**: Officially supported on both YouTube and YouTube Music. Left-drag horizontally across a YouTube video or the YouTube Music player in song or video mode. **Alt + left-drag** also works across either site. A floating HUD shows the level; turn **Follow cursor** off to park it at the click position instead.
+- **2x Speed Lock**: Hold left-click to use YouTube's built-in 2x speed, then hover over the top speed pill and release to lock your target speed (or reset back to 1x). Hold on the pill briefly to expand nearby speeds. Fully synchronized with YouTube's bottom-right playback speed menu.
 - **Layout Trimmer**: Narrow YouTube’s extra-wide layout, resize the suggested-videos sidebar, and align the page (left / center / right).
-- **SkipIt**: After a single skip keypress (Right Arrow or L), automatically click YouTube’s native **Jump ahead** button.
+- **SkipIt**: After a single skip keypress (Right Arrow or L), automatically click YouTube’s native **Jump ahead** button. An optional quick pause/play gesture provides the same action from headphone media controls.
 - **Toggles**: Turn any one feature on, or use the header switch to turn everything on or off.
+- **Interactive guide**: After a fresh install, a short overlay appears on YouTube. Use the popup’s **Guide** button to replay it.
 
-Layout Trimmer shortcuts:
+## Privacy
 
-- `Alt + [`: Decrease width by 50px
-- `Alt + ]`: Increase width by 50px
-- `Alt + \`: Toggle layout trimmer ON / OFF
+All features run locally on YouTube domains, including music.youtube.com for Volume Drag. Settings stay in your browser. The extension does not collect analytics or send data to the developer.
 
----
+See [PRIVACY.md](PRIVACY.md).
 
-## 🚀 Installation
+## Chrome Web Store
 
-1. Click the green **Code** button at the top of this repository and select **Download ZIP**.
-2. **Unzip / Extract** the downloaded ZIP file to a folder on your computer.
-3. Open Google Chrome (or Edge / Brave / Opera) and go to `chrome://extensions/`.
-4. Turn ON **Developer mode** using the toggle in the top-right corner.
-5. Click **Load unpacked** in the top-left corner and select the unzipped folder.
-6. **Refresh YouTube (`F5`)** if you already had a tab open, then click the extension icon to choose which features to use.
+Upload `youtube-toolkit-1.2.0.zip`. Listing text and privacy-form answers are in [STORE_LISTING.md](STORE_LISTING.md).
 
----
+## Load unpacked (development)
 
-## 📄 License
+1. Open Chrome and go to `chrome://extensions/`.
+2. Turn on **Developer mode**.
+3. Click **Load unpacked** and select this folder.
+4. Refresh any YouTube tab that was already open.
+
+## License
 
 MIT License.

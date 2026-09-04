@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Toolkit guide</title>
+  <link rel="stylesheet" href="onboarding.css">
+</head>
+<body class="overlay-page">
+  <main class="onboarding-shell">
+    <header class="topbar">
+      <a class="brand" href="#volume" data-go="0" data-i18n-aria-label="brandAria">
+        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M9 7.5v9l7-4.5-7-4.5z"/></svg></span>
+        <span>YouTube Toolkit</span>
+      </a>
+      <div class="topbar-actions">
+        <button type="button" class="close-button" id="close-guide" data-i18n-aria-label="closeAria">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div class="progress-block" aria-live="polite">
+      <div class="progress-copy"><span id="step-label">Step 1 of 4</span><span id="step-name">Volume Drag</span></div>
+      <div class="progress-track" aria-hidden="true"><span id="progress-fill"></span></div>
+    </div>
+
+    <div class="steps" id="steps">
+      <section class="step is-active" id="volume" data-title-key="volumeTitle">
+        <p class="eyebrow" data-i18n="volumeTitle">Volume Drag</p>
+        <h1 data-i18n="volumeHeading">Drag sideways to change the volume.</h1>
+        <div class="practice-card">
+          <div class="practice-head">
+            <span><i aria-hidden="true"></i><span data-i18n="practiceLabel">Interactive practice</span></span>
+          </div>
+          <div class="practice-player volume-practice is-demonstrating" id="volume-practice" role="slider" tabindex="0" data-i18n-aria-label="volumeAria" aria-valuemin="0" aria-valuemax="100" aria-valuenow="64" aria-describedby="volume-practice-status">
+            <div class="practice-scene" aria-hidden="true"><span class="video-label" data-i18n="demoVideo">DEMO VIDEO</span><span class="scene-subject"></span><span class="scene-caption"></span></div>
+            <div class="practice-volume-hud" aria-hidden="true">
+              <svg class="speaker-icon" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4zm11.5-.8v7.6c1.5-.7 2.5-2.1 2.5-3.8s-1-3.1-2.5-3.8z"/></svg>
+              <span class="practice-volume-track"><i id="practice-volume-fill"></i></span><strong id="practice-volume-value">64%</strong>
+            </div>
+            <div class="practice-controls" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6 4v12l10-6L6 4z"/></svg><span class="control-line"></span><span class="control-chip">HD</span></div>
+            <span class="demo-pointer volume-cursor" id="volume-cursor" aria-hidden="true"><span class="pointer-hold-ring"></span><svg viewBox="0 0 28 32"><path d="M3 2v23l6.5-6.3 4.5 10.2 4.2-1.9-4.4-9.7H24L3 2z"/></svg></span>
+          </div>
+          <p class="practice-status" id="volume-practice-status" aria-live="polite" data-i18n="volumeStatusWatch">Watch the pointer, then drag left or right on the demo.</p>
+        </div>
+        <div class="instruction-list">
+          <div><span>1</span><p data-i18n="volumeInstruction1">Hold left-click on the video and drag sideways.</p></div>
+          <div><span>2</span><p data-i18n="volumeInstruction2">Hold Alt to drag from anywhere on YouTube.</p></div>
+          <div><span>3</span><p data-i18n="volumeInstruction3">Change the button and sensitivity in the extension.</p></div>
+        </div>
+      </section>
+
+      <section class="step" id="speed" data-title-key="speedTitle" hidden>
+        <p class="eyebrow" data-i18n="speedTitle">Speed Lock</p>
+        <h1 data-i18n="speedHeading">Hold, choose a speed, and let go.</h1>
+        <div class="practice-card">
+          <div class="practice-head">
+            <span><i aria-hidden="true"></i><span data-i18n="practiceLabel">Interactive practice</span></span>
+          </div>
+          <div class="practice-player speed-practice is-demonstrating" id="speed-practice" role="application" tabindex="0" data-i18n-aria-label="speedAria" aria-describedby="speed-practice-status">
+            <div class="practice-scene" aria-hidden="true"><span class="video-label" data-i18n="holdHere">HOLD LEFT-CLICK HERE</span><span class="scene-subject"></span><span class="scene-caption"></span></div>
+            <div class="practice-speed-picker" aria-hidden="true">
+              <button type="button" class="practice-speed-pill side-pill far-pill" data-rate="1.5" tabindex="-1">1.5x</button>
+              <button type="button" class="practice-speed-pill side-pill" data-rate="1.75" tabindex="-1">1.75x</button>
+              <button type="button" class="practice-speed-pill center-pill" data-rate="2" tabindex="-1">2x</button>
+              <button type="button" class="practice-speed-pill side-pill" data-rate="2.25" tabindex="-1">2.25x</button>
+              <button type="button" class="practice-speed-pill side-pill far-pill" data-rate="2.5" tabindex="-1">2.5x</button>
+            </div>
+            <div class="locked-rate" id="practice-locked-rate" aria-hidden="true">1x</div>
+            <div class="practice-controls" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M6 4v12l10-6L6 4z"/></svg><span class="control-line"></span><span class="control-chip">HD</span></div>
+            <span class="demo-pointer speed-cursor" aria-hidden="true"><span class="pointer-hold-ring"></span><svg viewBox="0 0 28 32"><path d="M3 2v23l6.5-6.3 4.5 10.2 4.2-1.9-4.4-9.7H24L3 2z"/></svg></span>
+          </div>
+          <p class="practice-status" id="speed-practice-status" aria-live="polite" data-i18n="speedStatusWatch">Watch: hold the video, move to the 2x pill, then release.</p>
+        </div>
+        <div class="instruction-list">
+          <div><span>1</span><p data-i18n="speedInstruction1">Hold left-click on the video.</p></div>
+          <div><span>2</span><p data-i18n="speedInstruction2">Move onto a speed pill and release.</p></div>
+          <div><span>3</span><p data-i18n="speedInstruction3">Hold a little longer to show 0.25x steps.</p></div>
+        </div>
+      </section>
+
+      <section class="step" id="headphones" data-title-key="headphoneTitle" hidden>
+        <p class="eyebrow" data-i18n="headphoneTitle">Headphone shortcut</p>
+        <h1 data-i18n="headphoneHeading">Pause, then resume to trigger SkipIt.</h1>
+        <p class="headphone-lead" data-i18n="headphoneLead">Use pause and play to automatically skip commonly skip commonly skipped sections.</p>
+        <div class="practice-card headphone-practice-card">
+          <div class="practice-head">
+            <span><i aria-hidden="true"></i><span data-i18n="animatedExample">Animated example</span></span>
+          </div>
+          <div class="headphone-scene">
+            <div class="headphone-animation" role="img" data-i18n-aria-label="headphoneAnimationAria">
+              <img class="headphones-image" src="../prototypes/assets/headphones-colored.webp" alt="" aria-hidden="true">
+              <span class="headphone-tap-ring ring-one" aria-hidden="true"></span>
+              <span class="headphone-tap-ring ring-two" aria-hidden="true"></span>
+              <img class="headphone-hand-image" id="headphone-hand" src="../prototypes/assets/side-tap-hand.webp" alt="" aria-hidden="true">
+            </div>
+            <div class="headphone-media-state" id="headphone-media-state" data-state="playing">
+              <span class="headphone-state-icon" id="headphone-state-icon" aria-hidden="true">▶</span>
+              <span id="headphone-animation-status" aria-live="polite" data-i18n="playing">Playing</span>
+            </div>
+            <div class="headphone-skip-result" id="headphone-skip-result" role="status">
+              <span class="skip-play-icon" aria-hidden="true"></span><strong data-i18n="skipped">Skipped</strong>
+            </div>
+          </div>
+          <p class="practice-status headphone-device-note" data-i18n="headphoneDeviceNote">Works with headphones, earbuds, remotes, keyboards, and any other device that can pause and resume the video.</p>
+        </div>
+      </section>
+
+      <section class="step finish-step" id="ready" data-title-key="readyTitle" hidden>
+        <p class="eyebrow" data-i18n="readyTitle">Ready</p>
+        <h1 data-i18n="readyHeading">More options and settings are available.</h1>
+        <div class="finish-settings-card">
+          <div class="finish-settings-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24"><path d="M4 7h10v2H4V7zm0 8h16v2H4v-2zm12-9h4v4h-4V6zM8 14h4v4H8v-4z"/></svg>
+          </div>
+          <div class="finish-settings-copy">
+            <h2 data-i18n="moreSettingsTitle">Head to YouTube Toolkit</h2>
+            <p data-i18n="readyBody">Change your settings, customise every feature, or replay this guide whenever you like.</p>
+            <strong data-i18n="finishSettingsHint">Select Finish to open it now.</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="navigation">
+      <button type="button" class="secondary-button" id="back-button" data-i18n="back">Back</button>
+      <div class="step-dots" id="step-dots" data-i18n-aria-label="progressAria"></div>
+      <button type="button" class="primary-button" id="next-button" data-i18n="next">Next</button>
+    </footer>
+
+    <div class="close-confirmation" id="close-confirmation" role="dialog" aria-modal="true" aria-labelledby="close-confirmation-title" hidden>
+      <div class="close-confirmation-card">
+        <p id="close-confirmation-title" data-i18n="closePrompt">Would you like to close the guide?</p>
+        <div class="close-confirmation-actions">
+          <button type="button" class="secondary-button" id="close-confirmation-no" data-i18n="no">No</button>
+          <button type="button" class="primary-button" id="close-confirmation-yes" data-i18n="yes">Yes</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script src="translations.js"></script>
+  <script src="onboarding.js"></script>
+</body>
+</html>

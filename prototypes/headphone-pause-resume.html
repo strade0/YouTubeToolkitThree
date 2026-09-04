@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Headphone Pause/Resume Guide Prototype</title>
+  <link rel="stylesheet" href="headphone-pause-resume.css">
+</head>
+<body>
+  <main class="prototype-shell">
+    <p class="eyebrow">HEADPHONE SHORTCUT</p>
+    <h1>Pause, then resume to trigger SkipIt.</h1>
+
+    <section class="animation-card" aria-labelledby="animation-status">
+      <div class="scene" id="headphone-scene">
+        <div class="headphone-animation" role="img" aria-label="A side-view hand double-tapping the right earcup of a pair of headphones">
+          <img class="headphones-image" src="assets/headphones-colored.webp" alt="" aria-hidden="true">
+          <span class="tap-ring ring-one" aria-hidden="true"></span>
+          <span class="tap-ring ring-two" aria-hidden="true"></span>
+          <img class="hand-image" id="animated-hand" src="assets/side-tap-hand.webp" alt="" aria-hidden="true">
+        </div>
+
+        <div class="media-state" id="media-state" data-state="playing">
+          <span class="state-icon" id="state-icon" aria-hidden="true">▶</span>
+          <span id="animation-status" aria-live="polite">Playing</span>
+        </div>
+      </div>
+
+      <div class="sequence">
+        <div class="sequence-step is-active" id="pause-step"><span>1</span><p>Double-tap the earcup to pause.</p></div>
+        <div class="sequence-line" aria-hidden="true"></div>
+        <div class="sequence-step" id="resume-step"><span>2</span><p>Double-tap again to resume.</p></div>
+      </div>
+      <p class="device-note">Works with headphones, earbuds, remotes, keyboards, and any other device that can pause and resume the video.</p>
+    </section>
+
+    <section class="tuning-panel" aria-labelledby="tuning-title">
+      <div class="tuning-head">
+        <h2 id="tuning-title">Fine-tune the layout</h2>
+        <span id="tuning-status" aria-live="polite">Changes preview instantly</span>
+      </div>
+
+      <div class="tuning-grid">
+        <fieldset>
+          <legend>Headphones</legend>
+          <label>Scale <output id="headphones-size-value">340px</output><input type="range" id="headphones-size" min="200" max="500" step="1" value="340"></label>
+          <label>Horizontal <output id="headphones-x-value">50%</output><input type="range" id="headphones-x" min="20" max="80" step="1" value="50"></label>
+          <label>Vertical <output id="headphones-y-value">49%</output><input type="range" id="headphones-y" min="20" max="80" step="1" value="49"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Hand</legend>
+          <label>Scale <output id="hand-size-value">370px</output><input type="range" id="hand-size" min="180" max="560" step="1" value="370"></label>
+          <label>Horizontal <output id="hand-x-value">66%</output><input type="range" id="hand-x" min="35" max="105" step="1" value="66"></label>
+          <label>Vertical <output id="hand-y-value">31%</output><input type="range" id="hand-y" min="-10" max="80" step="1" value="31"></label>
+          <label>Angle <output id="hand-angle-value">8°</output><input type="range" id="hand-angle" min="-90" max="90" step="1" value="8"></label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Tap marker</legend>
+          <label>Horizontal <output id="tap-x-value">71%</output><input type="range" id="tap-x" min="35" max="90" step="1" value="71"></label>
+          <label>Vertical <output id="tap-y-value">60%</output><input type="range" id="tap-y" min="20" max="85" step="1" value="60"></label>
+        </fieldset>
+      </div>
+
+      <output class="layout-values" id="layout-values"></output>
+      <div class="tuning-actions">
+        <button type="button" id="save-layout">Save coordinates</button>
+        <button type="button" id="reset-layout">Reset</button>
+      </div>
+    </section>
+
+    <button type="button" id="replay-animation">Replay animation</button>
+  </main>
+  <script src="headphone-pause-resume.js"></script>
+</body>
+</html>

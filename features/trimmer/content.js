@@ -8,24 +8,17 @@
 
   const DEFAULT_CONFIG = {
     enabled: true,
-    maxWidth: 1440,
-    sidebarWidth: 320,
-    align: 'center',
-    allPages: false,
-    trimTheater: false,
-    showHud: false,
-    enableHotkeys: true
+    maxWidth: 2000,
+    sidebarWidth: 500
   };
 
   let currentConfig = { ...DEFAULT_CONFIG };
   let masterEnabled = true;
-  let hudElement = null;
-  let toastElement = null;
-  let toastTimeout = null;
+  let configLoaded = false;
   let resizeTimeout = null;
 
   function isTrimmerEnabled() {
-    return masterEnabled && currentConfig.enabled;
+    return configLoaded && masterEnabled && currentConfig.enabled;
   }
 
   function prefixUpdates(updates) {
@@ -56,20 +49,11 @@
       const defaults = { [MASTER_KEY]: true, ...prefixUpdates(DEFAULT_CONFIG) };
       chrome.storage.sync.get(defaults, (items) => {
         applyPrefixedItems(items);
+        configLoaded = true;
         if (callback) callback(currentConfig);
       });
     } else {
-      if (callback) callback(currentConfig);
-    }
-  }
-
-  function saveConfig(updates, callback) {
-    currentConfig = { ...currentConfig, ...updates };
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-      chrome.storage.sync.set(prefixUpdates(updates), () => {
-        if (callback) callback(currentConfig);
-      });
-    } else {
+      configLoaded = true;
       if (callback) callback(currentConfig);
     }
   }
@@ -84,13 +68,10 @@
     root.style.setProperty('--yt-trimmer-max-width', `${config.maxWidth}px`);
     root.style.setProperty('--yt-trimmer-sidebar-width', `${sidebarW}px`);
     root.style.setProperty('--yt-trimmer-sidebar-thumb-width', `${thumbW}px`);
-    root.setAttribute('data-yt-trimmer-enabled', (masterEnabled && config.enabled) ? 'true' : 'false');
-    root.setAttribute('data-yt-trimmer-align', config.align || 'center');
-    root.setAttribute('data-yt-trimmer-all-pages', config.allPages ? 'true' : 'false');
-    root.setAttribute('data-yt-trimmer-theater', config.trimTheater ? 'true' : 'false');
+    root.setAttribute('data-yt-trimmer-enabled', isTrimmerEnabled() ? 'true' : 'false');
 
     triggerYouTubeResize();
-    updateHudUi();
+    observeWatchLayout();
   }
 
   function triggerYouTubeResize() {
@@ -115,7 +96,7 @@
   let watchObservedEl = null;
 
   function observeWatchLayout() {
-    if (!isWatchPage()) {
+    if (!isWatchPage() || !isTrimmerEnabled()) {
       if (watchObserver) {
         watchObserver.disconnect();
         watchObserver = null;
@@ -142,134 +123,6 @@
     });
   }
 
-  function showToast(message) {
-    if (!toastElement) {
-      toastElement = document.createElement('div');
-      toastElement.id = 'yt-trimmer-toast';
-      document.body.appendChild(toastElement);
-    }
-
-    toastElement.textContent = message;
-    toastElement.classList.add('yt-trimmer-toast-show');
-
-    clearTimeout(toastTimeout);
-    toastTimeout = setTimeout(() => {
-      if (toastElement) {
-        toastElement.classList.remove('yt-trimmer-toast-show');
-      }
-    }, 1600);
-  }
-
-  function setupHud() {
-    if (hudElement || !document.body) return;
-
-    hudElement = document.createElement('div');
-    hudElement.id = 'yt-trimmer-hud';
-    hudElement.innerHTML = `
-      <button class="yt-trimmer-hud-icon-btn" id="yt-trimmer-hud-toggle" title="YouTube Layout Trimmer (Click to collapse/expand)">
-        <svg viewBox="0 0 24 24">
-          <path d="M4 6h2v12H4V6zm14 0h2v12h-2V6zM8.5 12l3.5-3.5v7L8.5 12zm7 0L12 8.5v7l3.5-3.5z"/>
-        </svg>
-      </button>
-      <div class="yt-trimmer-hud-body">
-        <button class="yt-trimmer-hud-step-btn" id="yt-trimmer-hud-minus" title="Decrease width (Alt+[)">−</button>
-        <input type="range" class="yt-trimmer-hud-slider" id="yt-trimmer-hud-slider" min="960" max="2560" step="20" value="${currentConfig.maxWidth}" title="Drag to adjust width in real time">
-        <button class="yt-trimmer-hud-step-btn" id="yt-trimmer-hud-plus" title="Increase width (Alt+])">+</button>
-        <span class="yt-trimmer-hud-val" id="yt-trimmer-hud-val">${currentConfig.maxWidth}px</span>
-      </div>
-    `;
-
-    document.body.appendChild(hudElement);
-
-    const slider = hudElement.querySelector('#yt-trimmer-hud-slider');
-    const valText = hudElement.querySelector('#yt-trimmer-hud-val');
-    const minusBtn = hudElement.querySelector('#yt-trimmer-hud-minus');
-    const plusBtn = hudElement.querySelector('#yt-trimmer-hud-plus');
-    const toggleBtn = hudElement.querySelector('#yt-trimmer-hud-toggle');
-
-    slider.addEventListener('input', (e) => {
-      const newWidth = parseInt(e.target.value, 10);
-      currentConfig.maxWidth = newWidth;
-      valText.textContent = `${newWidth}px`;
-      document.documentElement.style.setProperty('--yt-trimmer-max-width', `${newWidth}px`);
-      triggerYouTubeResize();
-    });
-
-    slider.addEventListener('change', (e) => {
-      const newWidth = parseInt(e.target.value, 10);
-      saveConfig({ maxWidth: newWidth });
-    });
-
-    minusBtn.addEventListener('click', () => {
-      const newWidth = Math.max(960, currentConfig.maxWidth - 40);
-      updateWidth(newWidth, true);
-    });
-
-    plusBtn.addEventListener('click', () => {
-      const newWidth = Math.min(2560, currentConfig.maxWidth + 40);
-      updateWidth(newWidth, true);
-    });
-
-    toggleBtn.addEventListener('click', () => {
-      hudElement.classList.toggle('yt-trimmer-hud-collapsed');
-    });
-
-    updateHudUi();
-  }
-
-  function updateHudUi() {
-    if (!hudElement) return;
-
-    if (!currentConfig.showHud || !isTrimmerEnabled()) {
-      hudElement.classList.add('yt-trimmer-hud-hidden');
-    } else {
-      hudElement.classList.remove('yt-trimmer-hud-hidden');
-    }
-
-    const slider = hudElement.querySelector('#yt-trimmer-hud-slider');
-    const valText = hudElement.querySelector('#yt-trimmer-hud-val');
-
-    if (slider) slider.value = currentConfig.maxWidth;
-    if (valText) valText.textContent = `${currentConfig.maxWidth}px`;
-  }
-
-  function updateWidth(newWidth, notify = false) {
-    currentConfig.maxWidth = newWidth;
-    applyStyles(currentConfig);
-    saveConfig({ maxWidth: newWidth });
-    if (notify) {
-      showToast(`Width: ${newWidth}px`);
-    }
-  }
-
-  function setupHotkeys() {
-    window.addEventListener('keydown', (e) => {
-      if (!masterEnabled || !currentConfig.enableHotkeys) return;
-
-      const target = e.target;
-      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
-        return;
-      }
-
-      if (e.altKey && e.key === '[') {
-        e.preventDefault();
-        const newWidth = Math.max(960, currentConfig.maxWidth - 50);
-        updateWidth(newWidth, true);
-      } else if (e.altKey && e.key === ']') {
-        e.preventDefault();
-        const newWidth = Math.min(2560, currentConfig.maxWidth + 50);
-        updateWidth(newWidth, true);
-      } else if (e.altKey && e.key === '\\') {
-        e.preventDefault();
-        const newEnabled = !currentConfig.enabled;
-        currentConfig.enabled = newEnabled;
-        applyStyles(currentConfig);
-        saveConfig({ enabled: newEnabled });
-        showToast(newEnabled ? `Trimmer Enabled (${currentConfig.maxWidth}px)` : 'Trimmer Disabled (Full Width)');
-      }
-    });
-  }
-
   function setupMessageListeners() {
     if (typeof chrome === 'undefined' || !chrome.runtime || !chrome.runtime.onMessage) return;
 
@@ -279,18 +132,25 @@
         if (request.enabled !== undefined) currentConfig.enabled = request.enabled;
         applyStyles(currentConfig);
         sendResponse({ success: true, config: currentConfig });
-      } else if (request.action === 'trimmer.SET_SIDEBAR_WIDTH') {
+        return true;
+      }
+      if (request.action === 'trimmer.SET_SIDEBAR_WIDTH') {
         currentConfig.sidebarWidth = request.sidebarWidth;
         applyStyles(currentConfig);
         sendResponse({ success: true, config: currentConfig });
-      } else if (request.action === 'trimmer.UPDATE_CONFIG') {
+        return true;
+      }
+      if (request.action === 'trimmer.UPDATE_CONFIG') {
         currentConfig = { ...currentConfig, ...request.config };
         applyStyles(currentConfig);
         sendResponse({ success: true, config: currentConfig });
-      } else if (request.action === 'trimmer.GET_CONFIG') {
-        sendResponse({ success: true, config: currentConfig });
+        return true;
       }
-      return true;
+      if (request.action === 'trimmer.GET_CONFIG') {
+        sendResponse({ success: true, config: currentConfig });
+        return true;
+      }
+      return false;
     });
 
     if (chrome.storage && chrome.storage.onChanged) {
@@ -373,14 +233,10 @@
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-      setupHud();
-      setupHotkeys();
       setupMessageListeners();
       setupLayoutWatchers();
     });
   } else {
-    setupHud();
-    setupHotkeys();
     setupMessageListeners();
     setupLayoutWatchers();
   }

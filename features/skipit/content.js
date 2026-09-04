@@ -5,26 +5,35 @@
 
   const STORAGE_PREFIX = 'skipit.';
   const MASTER_KEY = 'toolkit.masterEnabled';
+  const JUMP_AHEAD_LABELS = ['jump ahead', 'avanzar', 'avancer', 'vorspulen', 'avançar'];
 
   const settings = {
     enabled: true,
     delay: 600,
+    mediaGestureEnabled: true,
+    mediaGestureWindow: 1000,
     keys: {
       ArrowRight: true,
       KeyL: true
     }
   };
   let masterEnabled = true;
+  let settingsLoaded = false;
 
   let skipTimer = null;
   let skipPressCount = 0;
   let resetTimer = null;
+  let mediaGestureTimer = null;
+  let mediaGestureVideo = null;
+  let mediaGesturePausedAt = 0;
+  let mediaGesturePausedTime = 0;
+  let mediaGestureSkipTimer = null;
 
   function isSkipItEnabled() {
-    return masterEnabled && settings.enabled;
+    return settingsLoaded && masterEnabled && settings.enabled;
   }
 
-  function applyLocalItems(result) {
+  function applyStorageItems(result) {
     if (!result) return;
     if (result[MASTER_KEY] !== undefined) {
       masterEnabled = result[MASTER_KEY] !== false;
@@ -35,23 +44,30 @@
     if (result[STORAGE_PREFIX + 'delay'] !== undefined) {
       settings.delay = result[STORAGE_PREFIX + 'delay'];
     }
+    if (result[STORAGE_PREFIX + 'mediaGestureEnabled'] !== undefined) {
+      settings.mediaGestureEnabled = result[STORAGE_PREFIX + 'mediaGestureEnabled'];
+    }
+    if (result[STORAGE_PREFIX + 'mediaGestureWindow'] !== undefined) {
+      settings.mediaGestureWindow = result[STORAGE_PREFIX + 'mediaGestureWindow'];
+    }
     if (result[STORAGE_PREFIX + 'keys'] !== undefined) {
       settings.keys = { ...settings.keys, ...result[STORAGE_PREFIX + 'keys'] };
     }
   }
 
   function loadSettings() {
-    chrome.storage.local.get(
+    chrome.storage.sync.get(
       {
+        [MASTER_KEY]: true,
         [STORAGE_PREFIX + 'enabled']: true,
         [STORAGE_PREFIX + 'delay']: 600,
+        [STORAGE_PREFIX + 'mediaGestureEnabled']: false,
+        [STORAGE_PREFIX + 'mediaGestureWindow']: 1000,
         [STORAGE_PREFIX + 'keys']: { ArrowRight: true, KeyL: true }
       },
-      (localResult) => {
-        applyLocalItems(localResult);
-        chrome.storage.sync.get({ [MASTER_KEY]: true }, (syncResult) => {
-          applyLocalItems(syncResult);
-        });
+      (result) => {
+        applyStorageItems(result);
+        settingsLoaded = true;
       }
     );
   }
@@ -59,21 +75,54 @@
   loadSettings();
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'sync' && changes[MASTER_KEY]) {
+    if (area !== 'sync') return;
+    if (changes[MASTER_KEY]) {
       masterEnabled = changes[MASTER_KEY].newValue !== false;
     }
-    if (area === 'local') {
-      if (changes[STORAGE_PREFIX + 'enabled']) {
-        settings.enabled = changes[STORAGE_PREFIX + 'enabled'].newValue;
-      }
-      if (changes[STORAGE_PREFIX + 'delay']) {
-        settings.delay = changes[STORAGE_PREFIX + 'delay'].newValue;
-      }
-      if (changes[STORAGE_PREFIX + 'keys']) {
-        settings.keys = { ...settings.keys, ...changes[STORAGE_PREFIX + 'keys'].newValue };
+    if (changes[STORAGE_PREFIX + 'enabled']) {
+      settings.enabled = changes[STORAGE_PREFIX + 'enabled'].newValue;
+    }
+    if (changes[STORAGE_PREFIX + 'delay']) {
+      settings.delay = changes[STORAGE_PREFIX + 'delay'].newValue;
+    }
+    if (changes[STORAGE_PREFIX + 'mediaGestureEnabled']) {
+      settings.mediaGestureEnabled = changes[STORAGE_PREFIX + 'mediaGestureEnabled'].newValue;
+      if (!settings.mediaGestureEnabled) {
+        clearMediaGesture();
+        if (mediaGestureSkipTimer) clearTimeout(mediaGestureSkipTimer);
+        mediaGestureSkipTimer = null;
       }
     }
+    if (changes[STORAGE_PREFIX + 'mediaGestureWindow']) {
+      settings.mediaGestureWindow = changes[STORAGE_PREFIX + 'mediaGestureWindow'].newValue;
+      clearMediaGesture();
+    }
+    if (changes[STORAGE_PREFIX + 'keys']) {
+      settings.keys = { ...settings.keys, ...changes[STORAGE_PREFIX + 'keys'].newValue };
+    }
+    if (!masterEnabled || !settings.enabled) {
+      cancelPendingSkip();
+    }
   });
+
+  function cancelPendingSkip() {
+    if (skipTimer) clearTimeout(skipTimer);
+    if (resetTimer) clearTimeout(resetTimer);
+    if (mediaGestureSkipTimer) clearTimeout(mediaGestureSkipTimer);
+    skipTimer = null;
+    resetTimer = null;
+    mediaGestureSkipTimer = null;
+    skipPressCount = 0;
+    clearMediaGesture();
+  }
+
+  function clearMediaGesture() {
+    if (mediaGestureTimer) clearTimeout(mediaGestureTimer);
+    mediaGestureTimer = null;
+    mediaGestureVideo = null;
+    mediaGesturePausedAt = 0;
+    mediaGesturePausedTime = 0;
+  }
 
   function isTypingInInput() {
     const activeEl = document.activeElement;
@@ -87,18 +136,36 @@
     );
   }
 
+  function clickableAction(element) {
+    if (!element) return null;
+    return (element.closest && element.closest('button')) || element;
+  }
+
+  function isRecognizedJumpAheadAction(element) {
+    if (!element) return false;
+    const container = element.closest && element.closest('.ytp-suggested-action');
+    const candidates = container && container !== element ? [element, container] : [element];
+    const text = candidates.map((candidate) => [
+      candidate.textContent,
+      candidate.getAttribute && candidate.getAttribute('aria-label'),
+      candidate.getAttribute && candidate.getAttribute('title')
+    ].filter(Boolean).join(' ')).join(' ').toLowerCase();
+    if (!container && !text.includes('jump ahead')) return false;
+    return JUMP_AHEAD_LABELS.some((label) => text.includes(label));
+  }
+
   function findJumpAheadButton() {
     const badges = document.querySelectorAll('.ytp-suggested-action-badge');
     for (const badge of badges) {
-      if (badge.textContent && badge.textContent.toLowerCase().includes('jump ahead')) {
-        return badge;
+      if (isRecognizedJumpAheadAction(badge)) {
+        return clickableAction(badge);
       }
     }
 
     const containers = document.querySelectorAll('.ytp-suggested-action');
     for (const container of containers) {
-      if (container.textContent && container.textContent.toLowerCase().includes('jump ahead')) {
-        const btn = container.querySelector('button') || container.querySelector('.ytp-suggested-action-badge');
+      if (isRecognizedJumpAheadAction(container)) {
+        const btn = container.querySelector('button') || clickableAction(container.querySelector('.ytp-suggested-action-badge'));
         if (btn) return btn;
       }
     }
@@ -107,9 +174,17 @@
     if (player) {
       const buttons = player.querySelectorAll('button');
       for (const btn of buttons) {
-        if (btn.textContent && btn.textContent.toLowerCase().includes('jump ahead')) {
+        if (isRecognizedJumpAheadAction(btn)) {
           return btn;
         }
+      }
+    }
+
+    // YouTube translates the visible label but retains the native suggested-action
+    // structure. Restrict the language-neutral fallback to a visible action badge.
+    for (const badge of badges) {
+      if (badge.closest('.ytp-suggested-action') && isElementVisible(badge)) {
+        return clickableAction(badge);
       }
     }
 
@@ -133,7 +208,7 @@
     if (!button) return;
 
     try {
-      chrome.runtime.sendMessage({ action: 'skipit.jump_triggered' }, () => {
+      chrome.runtime.sendMessage({ action: 'skipit.jump_triggered', secondsSaved: 25 }, () => {
         void chrome.runtime.lastError;
       });
     } catch (err) {}
@@ -156,18 +231,77 @@
       }));
     });
 
-    chrome.storage.local.get(
-      { [STORAGE_PREFIX + 'jumpsCount']: 0, [STORAGE_PREFIX + 'timeSaved']: 0 },
-      (data) => {
-        const newCount = (data[STORAGE_PREFIX + 'jumpsCount'] || 0) + 1;
-        const newTimeSaved = (data[STORAGE_PREFIX + 'timeSaved'] || 0) + 25;
-        chrome.storage.local.set({
-          [STORAGE_PREFIX + 'jumpsCount']: newCount,
-          [STORAGE_PREFIX + 'timeSaved']: newTimeSaved
-        });
-      }
-    );
   }
+
+  function attemptJump() {
+    if (!isSkipItEnabled()) return;
+    const jumpButton = findJumpAheadButton();
+    if (jumpButton && (isElementVisible(jumpButton) || isRecognizedJumpAheadAction(jumpButton))) {
+      triggerJump(jumpButton);
+    }
+  }
+
+  function isVideoElement(element) {
+    return Boolean(element && String(element.tagName || '').toLowerCase() === 'video');
+  }
+
+  function isAdPlaying(video) {
+    const player = video && video.closest && video.closest('.html5-video-player');
+    return Boolean(player && (
+      player.classList.contains('ad-showing') ||
+      player.classList.contains('ad-interrupting')
+    ));
+  }
+
+  function notifyMediaGesture() {
+    try {
+      chrome.runtime.sendMessage({
+        action: 'skipit.skip_detected',
+        trigger: 'Quick pause/play'
+      }, () => {
+        void chrome.runtime.lastError;
+      });
+    } catch (err) {}
+  }
+
+  function handleVideoPause(event) {
+    const video = event.target;
+    if (!isSkipItEnabled() || !settings.mediaGestureEnabled || !isVideoElement(video)) return;
+
+    clearMediaGesture();
+    if (video.ended || video.seeking || isAdPlaying(video)) return;
+
+    mediaGestureVideo = video;
+    mediaGesturePausedAt = Date.now();
+    mediaGesturePausedTime = Number(video.currentTime) || 0;
+    mediaGestureTimer = setTimeout(clearMediaGesture, settings.mediaGestureWindow);
+  }
+
+  function handleVideoPlay(event) {
+    const video = event.target;
+    if (!isSkipItEnabled() || !settings.mediaGestureEnabled || video !== mediaGestureVideo) return;
+
+    const elapsed = Date.now() - mediaGesturePausedAt;
+    const playTime = Number(video.currentTime) || 0;
+    const stayedAtSamePosition = Math.abs(playTime - mediaGesturePausedTime) <= 1.5;
+    const completedInTime = elapsed >= 0 && elapsed <= settings.mediaGestureWindow;
+    const canTrigger = completedInTime && stayedAtSamePosition && !video.ended && !video.seeking && !isAdPlaying(video);
+    clearMediaGesture();
+
+    if (!canTrigger) return;
+    notifyMediaGesture();
+    if (mediaGestureSkipTimer) clearTimeout(mediaGestureSkipTimer);
+    mediaGestureSkipTimer = setTimeout(() => {
+      mediaGestureSkipTimer = null;
+      attemptJump();
+    }, settings.delay);
+  }
+
+  // Headset media buttons reach the page as ordinary video pause/play events.
+  // Capture listeners work across YouTube's single-page navigation and replaced
+  // video elements without taking over the site's Media Session handlers.
+  document.addEventListener('pause', handleVideoPause, true);
+  document.addEventListener('play', handleVideoPlay, true);
 
   window.addEventListener('keydown', (event) => {
     if (!isSkipItEnabled() || isTypingInInput()) return;
@@ -196,11 +330,9 @@
       if (skipTimer) clearTimeout(skipTimer);
 
       skipTimer = setTimeout(() => {
-        if (skipPressCount === 1) {
-          const jumpButton = findJumpAheadButton();
-          if (jumpButton && isElementVisible(jumpButton)) {
-            triggerJump(jumpButton);
-          }
+        skipTimer = null;
+        if (skipPressCount === 1 && isSkipItEnabled()) {
+          attemptJump();
         }
         skipPressCount = 0;
       }, settings.delay);

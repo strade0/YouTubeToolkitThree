@@ -6,20 +6,24 @@ class VolumeVisualizerHUD {
     this.fill = null;
     this.badge = null;
     this.iconBox = null;
+    this.header = null;
+    this.waveform = null;
     this.waveBars = [];
     this.hideTimeout = null;
-    this.currentStyle = 'wave';
+    this.options = { showIcon: true, showWaveform: true, showPercentage: true };
     this.numBars = 6;
     this.isMounted = false;
 
     this.lastSpeakerState = null;
     this.lastPercent = -1;
     this.lastMuted = null;
-    this.lastX = -1;
-    this.lastY = -1;
+    this.lastX = null;
+    this.lastY = null;
     this.lastBelow = null;
     this.cardWidth = 0;
     this.cardHeight = 0;
+    this.trackWidth = 0;
+    this.visible = false;
   }
 
   getSpeakerState(level, isMuted) {
@@ -73,7 +77,7 @@ class VolumeVisualizerHUD {
     }
 
     const wrapper = document.createElement('div');
-    wrapper.className = `yt-vol-hud-wrapper ${this.currentStyle === 'minimal' ? 'yt-vol-style-minimal' : ''}`;
+    wrapper.className = 'yt-vol-hud-wrapper';
     wrapper.setAttribute('aria-hidden', 'true');
 
     const card = document.createElement('div');
@@ -118,8 +122,8 @@ class VolumeVisualizerHUD {
     const sliderThumb = document.createElement('div');
     sliderThumb.className = 'yt-vol-slider-thumb';
 
-    sliderFill.appendChild(sliderThumb);
     sliderWrap.appendChild(sliderFill);
+    sliderWrap.appendChild(sliderThumb);
 
     body.appendChild(header);
     body.appendChild(sliderWrap);
@@ -130,8 +134,12 @@ class VolumeVisualizerHUD {
 
     this.wrapper = wrapper;
     this.fill = sliderFill;
+    this.thumb = sliderThumb;
     this.badge = badge;
     this.iconBox = iconBox;
+    this.header = header;
+    this.waveform = waveform;
+    this.setOptions(this.options);
   }
 
   mount(targetContainer) {
@@ -143,25 +151,25 @@ class VolumeVisualizerHUD {
     }
   }
 
-  setStyle(style) {
-    this.currentStyle = style;
-    this.cardWidth = 0;
-    this.cardHeight = 0;
+  setOptions(options = {}) {
+    this.options = { ...this.options, ...options };
+    const noHeader = !this.options.showWaveform && !this.options.showPercentage;
+    const compactTrack = !this.options.showIcon && noHeader;
+    this.cardWidth = compactTrack ? 200 : 300;
+    this.cardHeight = compactTrack ? 26 : 55;
+    this.trackWidth = 0;
+    this.lastPercent = -1;
     if (this.wrapper) {
-      if (style === 'minimal') {
-        this.wrapper.classList.add('yt-vol-style-minimal');
-      } else {
-        this.wrapper.classList.remove('yt-vol-style-minimal');
-      }
+      this.wrapper.classList.toggle('yt-vol-hide-icon', !this.options.showIcon);
+      this.wrapper.classList.toggle('yt-vol-hide-waveform', !this.options.showWaveform);
+      this.wrapper.classList.toggle('yt-vol-hide-percentage', !this.options.showPercentage);
+      this.wrapper.classList.toggle('yt-vol-no-header', noHeader);
+      this.wrapper.classList.toggle('yt-vol-compact-track', compactTrack);
     }
-  }
-
-  measure() {
-    if (!this.wrapper) return;
-    const w = this.wrapper.offsetWidth;
-    const h = this.wrapper.offsetHeight;
-    if (w) this.cardWidth = w;
-    if (h) this.cardHeight = h;
+    if (this.iconBox) this.iconBox.style.display = this.options.showIcon ? 'flex' : 'none';
+    if (this.waveform) this.waveform.style.display = this.options.showWaveform ? 'flex' : 'none';
+    if (this.badge) this.badge.style.display = this.options.showPercentage ? 'block' : 'none';
+    if (this.header) this.header.style.display = noHeader ? 'none' : 'flex';
   }
 
   show() {
@@ -169,21 +177,20 @@ class VolumeVisualizerHUD {
       clearTimeout(this.hideTimeout);
       this.hideTimeout = null;
     }
-    if (this.wrapper && !this.wrapper.classList.contains('yt-vol-visible')) {
+    if (this.wrapper && !this.visible) {
+      this.visible = true;
       this.wrapper.classList.add('yt-vol-visible');
     }
   }
 
   isShowing() {
     if (this.hideTimeout) return true;
-    return !!(this.wrapper && this.wrapper.classList.contains('yt-vol-visible'));
+    return this.visible;
   }
 
-  applyTransform(x, y, below) {
+  applyTransform(posX, posY) {
     if (!this.wrapper) return;
-    const scale = 1;
-    const anchor = below ? 'translate(-50%, 8px)' : 'translate(-50%, -100%)';
-    this.wrapper.style.transform = `translate3d(${x}px, ${y}px, 0) ${anchor} scale(${scale})`;
+    this.wrapper.style.transform = `translate3d(${posX}px, ${posY}px, 0)`;
   }
 
   setPosition(cursorX, cursorY, playerRect) {
@@ -194,14 +201,15 @@ class VolumeVisualizerHUD {
     const relX = cursorX - playerRect.left;
     const relY = cursorY - playerRect.top;
 
-    const cardWidth = this.cardWidth || (this.currentStyle === 'minimal' ? 240 : 320);
-    const cardHeight = this.cardHeight || 55;
-    const halfWidth = cardWidth / 2;
+    const isCompact = !this.options.showIcon && !this.options.showWaveform && !this.options.showPercentage;
+    const cardWidth = isCompact ? 200 : 300;
+    const cardHeight = isCompact ? 26 : 55;
+    const halfWidth = isCompact ? 100 : 150;
     const gap = 16;
 
     const minX = halfWidth + 12;
     const maxX = Math.max(minX, playerRect.width - halfWidth - 12);
-    const clampedX = Math.round(Math.max(minX, Math.min(maxX, relX)));
+    const clampedX = Math.max(minX, Math.min(maxX, relX));
 
     const spaceAbove = relY - gap;
     const flipBelow = spaceAbove < cardHeight + 10;
@@ -209,48 +217,70 @@ class VolumeVisualizerHUD {
     let clampedY;
     if (flipBelow) {
       const maxY = Math.max(gap, playerRect.height - cardHeight - 10);
-      clampedY = Math.round(Math.max(gap, Math.min(maxY, relY + gap)));
+      clampedY = Math.max(gap, Math.min(maxY, relY + gap));
     } else {
-      clampedY = Math.round(Math.max(cardHeight + 10, Math.min(playerRect.height - 10, relY - gap)));
+      clampedY = Math.max(cardHeight + 10, Math.min(playerRect.height - 10, relY - gap));
     }
 
-    if (clampedX !== this.lastX || clampedY !== this.lastY || flipBelow !== this.lastBelow) {
-      this.lastX = clampedX;
-      this.lastY = clampedY;
-      this.lastBelow = flipBelow;
-      this.wrapper.classList.toggle('yt-vol-hud-below', flipBelow);
-      this.applyTransform(clampedX, clampedY, flipBelow);
+    const posX = playerRect.left + clampedX - halfWidth;
+    const posY = playerRect.top + (flipBelow ? (clampedY + 8) : (clampedY - cardHeight));
+
+    if (posX !== this.lastX || posY !== this.lastY || flipBelow !== this.lastBelow) {
+      this.lastX = posX;
+      this.lastY = posY;
+      if (flipBelow !== this.lastBelow) {
+        this.lastBelow = flipBelow;
+        this.wrapper.classList.toggle('yt-vol-hud-below', flipBelow);
+      }
+      this.applyTransform(posX, posY);
     }
   }
 
-  update(volumeFraction, isMuted, cursorX, cursorY, playerRect) {
-    if (typeof cursorX === 'number' && typeof cursorY === 'number' && playerRect) {
-      this.setPosition(cursorX, cursorY, playerRect);
+  applyWaveBars(level, effectiveMuted) {
+    if (!this.options.showWaveform || !this.waveBars.length) return;
+    const minScale = 0.166;
+    const t = (effectiveMuted || level <= 0) ? 0 : Math.max(0, Math.min(1, level));
+    for (let i = 0; i < this.waveBars.length; i++) {
+      const bar = this.waveBars[i];
+      const maxScale = Math.max(minScale, bar._weight || 0.5);
+      const scale = minScale + (maxScale - minScale) * t;
+      bar.style.transform = `scaleY(${scale})`;
     }
+  }
 
-    this.show();
+  applySpeakerIcon(level, effectiveMuted) {
+    if (!this.options.showIcon || !this.iconBox) return;
+    const speakerState = this.getSpeakerState(level, effectiveMuted);
+    if (speakerState === this.lastSpeakerState) return;
+    this.lastSpeakerState = speakerState;
+    this.iconBox.innerHTML = this.getSpeakerSvg(speakerState);
+  }
 
+  setLevel(volumeFraction, isMuted) {
     const clampedVol = Math.max(0, Math.min(1, volumeFraction));
     const percent = Math.round(clampedVol * 100);
     const effectiveMuted = isMuted || percent === 0;
+    const level = effectiveMuted ? 0 : clampedVol;
 
     if (percent === this.lastPercent && effectiveMuted === this.lastMuted) {
       return;
     }
 
-    if (this.fill) {
-      this.fill.style.width = `${effectiveMuted ? 0 : percent}%`;
-    }
+    this.lastPercent = percent;
+    this.lastMuted = effectiveMuted;
 
-    const speakerState = this.getSpeakerState(clampedVol, effectiveMuted);
-    if (this.iconBox && speakerState !== this.lastSpeakerState) {
-      this.lastSpeakerState = speakerState;
-      this.iconBox.innerHTML = this.getSpeakerSvg(speakerState);
+    if (this.fill) {
+      this.fill.style.transform = `scaleX(${level})`;
+    }
+    if (this.thumb) {
+      if (!this.trackWidth && this.thumb.parentElement) {
+        this.trackWidth = this.thumb.parentElement.offsetWidth || 0;
+      }
+      const x = this.trackWidth ? level * this.trackWidth : 0;
+      this.thumb.style.transform = `translate3d(${x - 5}px, 0, 0)`;
     }
 
     if (this.badge) {
-      this.lastPercent = percent;
-      this.lastMuted = effectiveMuted;
       if (effectiveMuted) {
         this.badge.textContent = 'Muted';
         this.badge.classList.add('is-muted');
@@ -258,25 +288,24 @@ class VolumeVisualizerHUD {
         this.badge.textContent = `${percent}%`;
         this.badge.classList.remove('is-muted');
       }
-    } else {
-      this.lastPercent = percent;
-      this.lastMuted = effectiveMuted;
     }
 
-    if (this.waveBars && this.waveBars.length > 0) {
-      for (let i = 0; i < this.waveBars.length; i++) {
-        const bar = this.waveBars[i];
-        if (effectiveMuted) {
-          bar.style.transform = 'scaleY(0.166)';
-          bar.style.opacity = '0.3';
-        } else {
-          const weight = bar._weight !== undefined ? bar._weight : 1.0;
-          const scale = Math.max(0.166, Math.min(1, 0.166 + (1 - 0.166) * clampedVol * weight));
-          bar.style.transform = `scaleY(${scale.toFixed(3)})`;
-          bar.style.opacity = `${(0.4 + 0.6 * clampedVol).toFixed(2)}`;
-        }
-      }
+    this.applyWaveBars(level, effectiveMuted);
+    this.applySpeakerIcon(level, effectiveMuted);
+  }
+
+  // Drag tick: compositor transforms + percent text. No innerHTML, no layout left/%.
+  paint(cursorX, cursorY, playerRect, volumeFraction) {
+    this.setPosition(cursorX, cursorY, playerRect);
+    this.setLevel(volumeFraction, volumeFraction === 0);
+  }
+
+  update(volumeFraction, isMuted, cursorX, cursorY, playerRect) {
+    if (typeof cursorX === 'number' && typeof cursorY === 'number' && playerRect) {
+      this.setPosition(cursorX, cursorY, playerRect);
     }
+    this.show();
+    this.setLevel(volumeFraction, isMuted);
   }
 
   hide(delay = 450) {
@@ -285,6 +314,7 @@ class VolumeVisualizerHUD {
       this.hideTimeout = null;
     }
     const hideNow = () => {
+      this.visible = false;
       if (this.wrapper) {
         this.wrapper.classList.remove('yt-vol-visible', 'yt-vol-hud-below');
       }
@@ -303,12 +333,28 @@ class VolumeVisualizerHUD {
   destroy() {
     if (this.hideTimeout) {
       clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
     }
     if (this.wrapper && this.wrapper.parentElement) {
       this.wrapper.parentElement.removeChild(this.wrapper);
     }
     this.wrapper = null;
+    this.fill = null;
+    this.thumb = null;
+    this.badge = null;
+    this.iconBox = null;
+    this.header = null;
+    this.waveform = null;
+    this.waveBars = [];
     this.isMounted = false;
+    this.visible = false;
+    this.lastSpeakerState = null;
+    this.lastPercent = -1;
+    this.lastMuted = null;
+    this.lastX = null;
+    this.lastY = null;
+    this.lastBelow = null;
+    this.trackWidth = 0;
   }
 }
 

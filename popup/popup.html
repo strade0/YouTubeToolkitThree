@@ -20,64 +20,43 @@
           <span class="subtitle">Volume · Layout · Skip · Speed</span>
         </div>
       </div>
-      <label class="toggle" title="Turn all features on or off">
-        <input type="checkbox" id="master-toggle" checked>
-        <span class="toggle-track"></span>
-      </label>
+      <div class="header-actions">
+        <button type="button" class="guide-btn" id="open-onboarding" aria-label="Open the YouTube Toolkit guide">Guide</button>
+        <label class="toggle" title="Turn all features on or off">
+          <input type="checkbox" id="master-toggle" aria-label="Turn all YouTube Toolkit features on or off" checked>
+          <span class="toggle-track"></span>
+        </label>
+      </div>
     </header>
 
     <nav class="tabs" role="tablist">
-      <button type="button" class="tab active" data-tab="volume" role="tab" aria-selected="true">Volume</button>
-      <button type="button" class="tab" data-tab="trimmer" role="tab" aria-selected="false">Layout</button>
-      <button type="button" class="tab" data-tab="skipit" role="tab" aria-selected="false">SkipIt</button>
-      <button type="button" class="tab" data-tab="speed" role="tab" aria-selected="false">Speed</button>
+      <button type="button" class="tab active" id="tab-volume" data-tab="volume" role="tab" aria-controls="panel-volume" aria-selected="true" tabindex="0">Volume</button>
+      <button type="button" class="tab" id="tab-trimmer" data-tab="trimmer" role="tab" aria-controls="panel-trimmer" aria-selected="false" tabindex="-1">Layout</button>
+      <button type="button" class="tab" id="tab-skipit" data-tab="skipit" role="tab" aria-controls="panel-skipit" aria-selected="false" tabindex="-1">SkipIt</button>
+      <button type="button" class="tab" id="tab-speed" data-tab="speed" role="tab" aria-controls="panel-speed" aria-selected="false" tabindex="-1">Speed</button>
     </nav>
 
     <!-- Volume Drag -->
-    <section class="panel active" id="panel-volume" data-feature="volume">
+    <section class="panel active" id="panel-volume" data-feature="volume" role="tabpanel" aria-labelledby="tab-volume">
       <div class="panel-head">
         <div>
           <h2>Volume Drag</h2>
-          <p>Drag across the video to change volume</p>
+          <p>Left-drag the video or YouTube Music player</p>
         </div>
         <label class="toggle sm" title="Enable Volume Drag">
-          <input type="checkbox" id="volume-enabled" checked>
+          <input type="checkbox" id="volume-enabled" aria-label="Enable Volume Drag" checked>
           <span class="toggle-track"></span>
         </label>
       </div>
 
       <div class="panel-body" id="volume-controls">
-        <div class="preview-card">
-          <div class="preview-icon">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
-            </svg>
-          </div>
-          <div class="preview-body">
-            <div class="preview-top">
-              <div class="preview-waves" id="preview-waves">
-                <span class="p-bar" style="height: 6px;"></span>
-                <span class="p-bar" style="height: 12px;"></span>
-                <span class="p-bar" style="height: 16px;"></span>
-                <span class="p-bar" style="height: 10px;"></span>
-                <span class="p-bar" style="height: 14px;"></span>
-                <span class="p-bar" style="height: 8px;"></span>
-              </div>
-              <span class="preview-badge">75%</span>
-            </div>
-            <div class="preview-track">
-              <div class="preview-fill" style="width: 75%;">
-                <div class="preview-thumb"></div>
-              </div>
-            </div>
-          </div>
+        <div class="inline-note">
+          <span><kbd>Alt</kbd> + left-drag works anywhere on YouTube and YouTube Music.</span>
         </div>
 
         <div class="field">
           <div class="field-head">
-            <label for="sensitivity-slider">Sensitivity</label>
+            <label for="sensitivity-slider">Drag sensitivity</label>
             <span class="value-chip" id="sensitivity-value">60%</span>
           </div>
           <input type="range" id="sensitivity-slider" min="30" max="100" step="5" value="60">
@@ -85,7 +64,7 @@
         </div>
 
         <div class="field">
-          <label for="trigger-select">Mouse drag trigger</label>
+          <label for="trigger-select">On-player mouse drag</label>
           <select id="trigger-select">
             <option value="left">Smart left-click drag</option>
             <option value="right">Right-click drag</option>
@@ -95,11 +74,24 @@
         </div>
 
         <div class="field">
-          <label for="style-select">Visualizer HUD</label>
-          <select id="style-select">
-            <option value="wave">Waveform + slider</option>
-            <option value="minimal">Minimal pill slider</option>
-          </select>
+          <span class="field-label">Volume display</span>
+          <div class="hud-component-toggles">
+            <label class="check"><input type="checkbox" id="hud-show-icon" checked><span>Volume icon</span></label>
+            <label class="check"><input type="checkbox" id="hud-show-waveform" checked><span>Waveform</span></label>
+            <label class="check"><input type="checkbox" id="hud-show-percentage" checked><span>Percentage</span></label>
+          </div>
+          <div class="hud-live-preview" id="hud-live-preview" aria-label="Volume display preview">
+            <span class="hud-mini-icon" id="hud-preview-icon">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            </span>
+            <span class="hud-mini-body">
+              <span class="hud-mini-top" id="hud-preview-top">
+                <span class="preview-waves" id="hud-preview-waveform"><span class="p-bar" style="height:4px"></span><span class="p-bar" style="height:8px"></span><span class="p-bar" style="height:11px"></span><span class="p-bar" style="height:7px"></span><span class="p-bar" style="height:10px"></span><span class="p-bar" style="height:5px"></span></span>
+                <span class="hud-mini-badge" id="hud-preview-percentage">75%</span>
+              </span>
+              <span class="preview-track"><span class="preview-fill" style="width:75%"><span class="preview-thumb"></span></span></span>
+            </span>
+          </div>
         </div>
 
         <div class="options">
@@ -109,7 +101,7 @@
               <span class="option-desc">Keep the volume pill under the mouse while dragging</span>
             </div>
             <span class="toggle sm">
-              <input type="checkbox" id="volume-follow-cursor" checked>
+              <input type="checkbox" id="volume-follow-cursor" aria-label="Make the volume display follow the cursor" checked>
               <span class="toggle-track"></span>
             </span>
           </label>
@@ -118,14 +110,14 @@
     </section>
 
     <!-- Layout Trimmer -->
-    <section class="panel" id="panel-trimmer" data-feature="trimmer">
+    <section class="panel" id="panel-trimmer" data-feature="trimmer" role="tabpanel" aria-labelledby="tab-trimmer">
       <div class="panel-head">
         <div>
           <h2>Layout Trimmer</h2>
           <p>Narrow YouTube’s extra-wide layout</p>
         </div>
         <label class="toggle sm" title="Enable Layout Trimmer">
-          <input type="checkbox" id="trimmer-enabled" checked>
+          <input type="checkbox" id="trimmer-enabled" aria-label="Enable Layout Trimmer" checked>
           <span class="toggle-track"></span>
         </label>
       </div>
@@ -133,106 +125,55 @@
       <div class="panel-body" id="trimmer-controls">
         <div class="card">
           <div class="card-head">
-            <span class="card-title">Container max width</span>
+            <span class="card-title">Maximum page width</span>
             <div class="num-box">
-              <input type="number" id="width-number" min="960" max="2560" step="10" value="1440">
+              <input type="number" id="width-number" min="960" max="2560" step="10" value="2000">
               <span>px</span>
             </div>
           </div>
           <div class="slider-row">
             <button type="button" class="step-btn" id="btn-step-minus" title="Decrease 50px">−</button>
-            <input type="range" id="width-slider" min="960" max="2560" step="10" value="1440">
+            <input type="range" id="width-slider" min="960" max="2560" step="10" value="2000">
             <button type="button" class="step-btn" id="btn-step-plus" title="Increase 50px">+</button>
           </div>
           <div class="range-labels"><span>960px</span><span>2560px</span></div>
-          <div class="presets">
-            <button type="button" class="preset-btn" data-width="1280">1280<span>Compact</span></button>
-            <button type="button" class="preset-btn" data-width="1440">1440<span>Balanced</span></button>
-            <button type="button" class="preset-btn" data-width="1600">1600<span>Comfort</span></button>
-            <button type="button" class="preset-btn" data-width="1800">1800<span>Wide</span></button>
-          </div>
+          <p class="hint">Sets the total watch-page width, including the video and suggestions.</p>
         </div>
 
         <div class="card">
           <div class="card-head">
             <span class="card-title">Suggested videos size</span>
             <div class="num-box">
-              <input type="number" id="sidebar-number" min="200" max="800" step="10" value="320">
+              <input type="number" id="sidebar-number" min="200" max="800" step="10" value="500">
               <span>px</span>
             </div>
           </div>
           <div class="slider-row">
             <button type="button" class="step-btn" id="btn-sidebar-minus" title="Decrease 20px">−</button>
-            <input type="range" id="sidebar-slider" min="200" max="800" step="10" value="320">
+            <input type="range" id="sidebar-slider" min="200" max="800" step="10" value="500">
             <button type="button" class="step-btn" id="btn-sidebar-plus" title="Increase 20px">+</button>
           </div>
           <div class="range-labels"><span>200px</span><span>800px</span></div>
-          <div class="presets">
-            <button type="button" class="sidebar-preset-btn" data-sidebar="260">260<span>Mini</span></button>
-            <button type="button" class="sidebar-preset-btn" data-sidebar="340">340<span>Compact</span></button>
-            <button type="button" class="sidebar-preset-btn" data-sidebar="450">450<span>Standard</span></button>
-            <button type="button" class="sidebar-preset-btn" data-sidebar="600">600<span>Wide</span></button>
-          </div>
+          <p class="hint">Reserves space for suggestions; the main video uses the remaining width.</p>
         </div>
 
-        <div class="card">
-          <span class="card-title">Page alignment</span>
-          <div class="segments">
-            <button type="button" class="segment-btn" data-align="left">Left</button>
-            <button type="button" class="segment-btn active" data-align="center">Center</button>
-            <button type="button" class="segment-btn" data-align="right">Right</button>
-          </div>
-        </div>
+        <p class="layout-tip">Adjust both sliders until the video and suggestions feel balanced.</p>
 
-        <div class="options">
-          <label class="option">
-            <div>
-              <span class="option-name">Apply to all pages</span>
-              <span class="option-desc">Home, Search & Subscriptions</span>
-            </div>
-            <span class="toggle sm">
-              <input type="checkbox" id="toggle-all-pages">
-              <span class="toggle-track"></span>
-            </span>
-          </label>
-          <label class="option">
-            <div>
-              <span class="option-name">Trim theater mode</span>
-              <span class="option-desc">Constrain theater player width</span>
-            </div>
-            <span class="toggle sm">
-              <input type="checkbox" id="toggle-theater">
-              <span class="toggle-track"></span>
-            </span>
-          </label>
-          <label class="option">
-            <div>
-              <span class="option-name">On-screen quick bar</span>
-              <span class="option-desc">Floating slider on YouTube</span>
-            </div>
-            <span class="toggle sm">
-              <input type="checkbox" id="toggle-hud">
-              <span class="toggle-track"></span>
-            </span>
-          </label>
-        </div>
-
-        <div class="panel-footer">
-          <span class="hotkeys"><kbd>Alt</kbd> + <kbd>[</kbd> / <kbd>]</kbd> width · <kbd>Alt</kbd> + <kbd>\</kbd> toggle</span>
+        <div class="panel-footer panel-footer-end">
           <button type="button" class="link-btn" id="btn-trimmer-reset">Reset</button>
         </div>
       </div>
     </section>
 
     <!-- SkipIt -->
-    <section class="panel" id="panel-skipit" data-feature="skipit">
+    <section class="panel" id="panel-skipit" data-feature="skipit" role="tabpanel" aria-labelledby="tab-skipit">
       <div class="panel-head">
         <div>
           <h2>SkipIt</h2>
           <p>Auto-click Jump Ahead after one skip</p>
         </div>
         <label class="toggle sm" title="Enable SkipIt">
-          <input type="checkbox" id="skipit-enabled" checked>
+          <input type="checkbox" id="skipit-enabled" aria-label="Enable SkipIt" checked>
           <span class="toggle-track"></span>
         </label>
       </div>
@@ -270,35 +211,31 @@
           </label>
         </div>
 
-        <div class="radar-wrap">
-          <div class="radar-head">
-            <span>Live activity</span>
-            <span class="activity-status" id="skipit-status"><span class="status-dot pulsing"></span>Active</span>
+        <div class="field">
+          <label class="check">
+            <input type="checkbox" id="media-gesture-enabled" checked>
+            <span>Quick pause/play gesture</span>
+          </label>
+          <div class="field-head">
+            <label for="media-gesture-window">Gesture window</label>
+            <span class="value-chip" id="media-gesture-window-value">1s</span>
           </div>
-          <div class="radar-container" id="radar-container">
-            <div class="radar-ring r1"></div>
-            <div class="radar-ring r2"></div>
-            <div class="radar-ring r3"></div>
-            <div class="radar-text" id="radar-message">Listening for skips...</div>
-          </div>
+          <input type="range" id="media-gesture-window" min="300" max="2000" step="100" value="1000">
+          <p class="hint">Pause and resume within this time using headphones or any playback control.</p>
         </div>
 
-        <div class="panel-footer">
-          <button type="button" class="link-btn" id="btn-skipit-reset">Reset statistics</button>
-          <span class="version" id="extension-version"></span>
-        </div>
       </div>
     </section>
 
     <!-- 2x Speed Lock -->
-    <section class="panel" id="panel-speed" data-feature="speed">
+    <section class="panel" id="panel-speed" data-feature="speed" role="tabpanel" aria-labelledby="tab-speed">
       <div class="panel-head">
         <div>
           <h2>2x Speed Lock</h2>
           <p>Hold left-click & hover top 2x icon to lock speed</p>
         </div>
         <label class="toggle sm" title="Enable 2x Speed Lock">
-          <input type="checkbox" id="speed-enabled" checked>
+          <input type="checkbox" id="speed-enabled" aria-label="Enable Speed Lock" checked>
           <span class="toggle-track"></span>
         </label>
       </div>
@@ -318,7 +255,7 @@
                 <polygon points="13 4 23 12 13 20 13 4"></polygon>
               </svg>
             </div>
-            <div class="speed-sublabel">Hover & release to lock or reset</div>
+            <div class="speed-sublabel">Hover & release to lock. Hold 0.3s for more speeds.</div>
           </div>
         </div>
 
@@ -331,18 +268,10 @@
             <option value="2.5">2.5x</option>
             <option value="3">3.0x</option>
           </select>
-          <p class="hint">Releasing over the 2x icon locks this speed. Doing it again resets back to 1.0x (Normal).</p>
+          <p class="hint">Quick-release on the pill locks this speed. Do it again to return to 1x.</p>
         </div>
 
-        <div class="how-to-card">
-          <span class="card-title">How it works</span>
-          <ol class="steps-list">
-            <li><strong>Hold Left-Click:</strong> Video speeds up to 2x (YouTube built-in).</li>
-            <li><strong>Hover 2x Icon:</strong> Drag cursor up over the 2x pill at top of video.</li>
-            <li><strong>Let Go:</strong> Releases into continuous 2x playback (syncs settings menu).</li>
-            <li><strong>Reset to 1x:</strong> Hold and release over the 2x icon again.</li>
-          </ol>
-        </div>
+        <button type="button" class="panel-guide-btn" id="speed-open-onboarding">Open help guide</button>
 
         <div class="panel-footer">
           <span class="version" id="speed-version"></span>
